@@ -3,7 +3,7 @@ import {
   Calendar, ClipboardList, BookOpen, User, LogOut,
   Users, CheckSquare, Megaphone, Plus, Trash2, AlertCircle, Home,
   Table, X, Sun, Moon, FileText, HelpCircle, Send, MessageSquare,
-  Award, Inbox, TrendingUp, Check, XCircle, Paperclip, Shield, Camera, ArrowLeft, GripVertical,
+  Award, Inbox, TrendingUp, Check, XCircle, Paperclip, Shield, Camera, ArrowLeft, GripVertical, Menu, Info, CalendarClock, MessageCircleWarning,
 } from "lucide-react";
 
 const STORAGE_KEY = "smudphok:data";
@@ -96,6 +96,19 @@ function genId(prefix) {
   return prefix + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+
+const BANNED_WORDS = [
+  // Thai
+  "เหี้ย", "สัส", "สัตว์", "ไอ้สัตว์", "ตอแหล", "ระยำ", "อีดอก", "กะหรี่",
+  "ควย", "หี", "เย็ด", "แม่มึง", "พ่อมึง", "ไอ้ควาย", "อีควาย", "ไอ้เหี้ย", "อีเหี้ย",
+  // English
+  "fuck", "shit", "bitch", "asshole", "cunt", "bastard", "dick", "whore", "slut",
+];
+
+function containsProfanity(text) {
+  const lower = text.toLowerCase();
+  return BANNED_WORDS.some((w) => lower.includes(w.toLowerCase()));
+}
 
 function fmtFileSize(bytes) {
   if (!bytes) return "";
@@ -308,7 +321,12 @@ const SEED = {
           { code: "20000-1301", teacher: "อ.พชรภูมิ", room: "412" },
           null, null, null, null,
         ],
-        "พุธ": [null, null, null, null, null, null, null, null],
+        "พุธ": [
+          null, null,
+          { code: "20000-1301", teacher: "ครูปิง สอนดี", room: "412" },
+          { code: "20000-1301", teacher: "ครูปิง สอนดี", room: "412" },
+          null, null, null, null,
+        ],
         "พฤหัสบดี": [
           null, null, null, null, null,
           { code: "HR", teacher: "อ.ณิชกุล", room: "412" },
@@ -400,6 +418,7 @@ const SEED = {
   submissions: [],
   leaveRequests: [],
   messages: [],
+  assignmentComments: [],
   behaviorLogs: [
     { id: "b1", studentId: "s1", points: 5, reason: "ช่วยงานกิจกรรมวันไหว้ครู", date: "2026-07-10" },
     { id: "b3", studentId: "s3", points: -5, reason: "มาสาย 3 ครั้งติดต่อกัน", date: "2026-07-15" },
@@ -521,6 +540,85 @@ function StudentTimetable({ data, student }) {
           </div>
           <div className="sp-card"><TimetableGrid tt={tt} /></div>
         </>
+      )}
+    </div>
+  );
+}
+
+function TeacherMySchedule({ data, session }) {
+  const mySlots = {};
+  let totalPeriods = 0;
+  DAYS.forEach((day) => { mySlots[day] = Array(8).fill(null); });
+
+  (data.timetables || []).forEach((tt) => {
+    DAYS.forEach((day) => {
+      const daySlots = (tt.schedule && tt.schedule[day]) || [];
+      daySlots.forEach((slot, pIdx) => {
+        if (slot && slot.teacher === session.name) {
+          mySlots[day][pIdx] = { code: slot.code, room: slot.room, class: tt.class };
+          totalPeriods++;
+        }
+      });
+    });
+  });
+
+  const teachingClasses = [...new Set(
+    (data.timetables || []).flatMap((tt) =>
+      DAYS.flatMap((day) => ((tt.schedule && tt.schedule[day]) || []).filter((s) => s && s.teacher === session.name).map(() => tt.class))
+    )
+  )];
+
+  return (
+    <div>
+      <h1>ตารางสอนของฉัน</h1>
+      <div className="sp-stats-grid">
+        <div className="sp-card sp-stat"><div className="sp-stat-label">คาบสอนต่อสัปดาห์</div><div className="sp-stat-value">{totalPeriods}</div></div>
+        <div className="sp-card sp-stat"><div className="sp-stat-label">จำนวนห้องที่สอน</div><div className="sp-stat-value">{teachingClasses.length}</div></div>
+      </div>
+      {totalPeriods === 0 ? (
+        <div className="sp-card">
+          <div className="sp-empty">ยังไม่พบคาบสอนที่ตรงกับชื่อบัญชีนี้ ("{session.name}") ในตารางเรียนของห้องใดเลย — ตรวจสอบว่าชื่อผู้สอนในหน้า "ตารางเรียน" สะกดตรงกับชื่อบัญชีนี้เป๊ะๆ</div>
+        </div>
+      ) : (
+        <div className="sp-card">
+          <div className="sp-timetable-wrap">
+            <table className="sp-table sp-timetable">
+              <thead>
+                <tr>
+                  <th>วัน / เวลา</th>
+                  {PERIOD_TIMES.map((t, i) => (
+                    <th key={i}>{t}<div className="sp-period-num">คาบ {i + 1}</div></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {DAYS.map((day, dayIdx) => (
+                  <tr key={day}>
+                    <td className="sp-day-cell">{day}</td>
+                    {PERIOD_TIMES.map((_, pIdx) => {
+                      if (pIdx === LUNCH_INDEX) {
+                        if (dayIdx === 0) return <td key={pIdx} rowSpan={DAYS.length} className="sp-lunch-cell">พักกลางวัน</td>;
+                        return null;
+                      }
+                      const slot = mySlots[day][pIdx];
+                      return (
+                        <td key={pIdx} className="sp-timetable-cell">
+                          {slot ? (
+                            <>
+                              <div className="sp-tt-code">{slot.code}</div>
+                              <div className="sp-tt-teacher">ห้อง {slot.class}</div>
+                              <div className="sp-tt-room">{slot.room}</div>
+                            </>
+                          ) : <span className="sp-tt-empty">-</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -825,77 +923,150 @@ function AboutPanel({ onClose, theme, setTheme, siteContent = {} }) {
   );
 }
 
+function NavMenuPanel({ nav, view, setView, onClose, isAdminAccount, role, onSwitchViewMode, name, onLogout, onOpenAbout }) {
+  return (
+    <>
+      <div className="sp-panel-backdrop" onClick={onClose} />
+      <div className="sp-navmenu-panel">
+        <div className="sp-navmenu-header">
+          <div className="sp-navmenu-title">เมนู</div>
+          <button className="sp-icon-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="sp-navmenu-user">{name}</div>
+        <button className="sp-navmenu-item" onClick={() => { onOpenAbout(); onClose(); }}>
+          <Info size={18} />
+          <div className="sp-navmenu-item-text">
+            <div className="sp-navmenu-item-label">เกี่ยวกับเว็บไซต์ & ธีม</div>
+            <div className="sp-navmenu-item-desc">ข้อมูลระบบและสลับโหมดสว่าง/มืด</div>
+          </div>
+        </button>
+        {isAdminAccount && (
+          <div className="sp-viewswitch">
+            <div className="sp-viewswitch-label">มุมมอง</div>
+            <button className={"sp-viewswitch-btn" + (role === "admin" ? " active" : "")} onClick={() => { onSwitchViewMode("admin"); onClose(); }}><Shield size={14} /> แอดมิน</button>
+            <button className={"sp-viewswitch-btn" + (role === "teacher" ? " active" : "")} onClick={() => { onSwitchViewMode("teacher"); onClose(); }}><Users size={14} /> ครู</button>
+            <button className={"sp-viewswitch-btn" + (role === "student" ? " active" : "")} onClick={() => { onSwitchViewMode("student"); onClose(); }}><User size={14} /> นักเรียน</button>
+          </div>
+        )}
+        <div className="sp-navmenu-list">
+          {nav.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} className={"sp-navmenu-item" + (view === item.id ? " active" : "")} onClick={() => { setView(item.id); onClose(); }}>
+                <Icon size={18} />
+                <div className="sp-navmenu-item-text">
+                  <div className="sp-navmenu-item-label">{item.label}</div>
+                  <div className="sp-navmenu-item-desc">{item.desc}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="sp-navmenu-divider" />
+        <button className="sp-navmenu-item sp-navmenu-logout" onClick={() => { onLogout(); onClose(); }}>
+          <LogOut size={18} />
+          <div className="sp-navmenu-item-text">
+            <div className="sp-navmenu-item-label">ออกจากระบบ</div>
+          </div>
+        </button>
+      </div>
+    </>
+  );
+}
+
 function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteContent, isAdminAccount, onSwitchViewMode }) {
   const [showAbout, setShowAbout] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const studentNav = [
-    { id: "dashboard", label: "หน้าหลัก", icon: Home },
-    { id: "materials", label: "สื่อการสอน", icon: FileText },
-    { id: "quizzes", label: "สอบออนไลน์", icon: HelpCircle },
-    { id: "grades", label: "เกรด", icon: BookOpen },
-    { id: "attendance", label: "การเข้าเรียน", icon: CheckSquare },
-    { id: "assignments", label: "งานที่ต้องส่ง", icon: ClipboardList },
-    { id: "timetable", label: "ตารางเรียน", icon: Table },
-    { id: "calendar", label: "ปฏิทิน", icon: Calendar },
-    { id: "leave", label: "ยื่นใบลา", icon: Send },
-    { id: "messages", label: "ข้อความ", icon: MessageSquare },
-    { id: "behavior", label: "พฤติกรรม & กิจกรรม", icon: Award },
-    { id: "profile", label: "โปรไฟล์", icon: User },
+    { id: "dashboard", label: "หน้าหลัก", desc: "ภาพรวมผลการเรียน งาน และกิจกรรม", icon: Home },
+    { id: "materials", label: "สื่อการสอน", desc: "ดาวน์โหลดเอกสาร สไลด์ คลิปการสอน", icon: FileText },
+    { id: "quizzes", label: "สอบออนไลน์", desc: "ทำแบบทดสอบและดูคะแนน", icon: HelpCircle },
+    { id: "grades", label: "เกรด", desc: "ดูคะแนนและเกรดเฉลี่ยแต่ละวิชา", icon: BookOpen },
+    { id: "attendance", label: "การเข้าเรียน", desc: "ดูสถิติการมา/สาย/ขาด/ลา", icon: CheckSquare },
+    { id: "assignments", label: "งานที่ต้องส่ง", desc: "ดูงานและอัปโหลดไฟล์ส่งงาน", icon: ClipboardList },
+    { id: "timetable", label: "ตารางเรียน", desc: "ดูตารางเรียนประจำสัปดาห์", icon: Table },
+    { id: "calendar", label: "ปฏิทิน", desc: "ดูวันหยุดและกิจกรรมของโรงเรียน", icon: Calendar },
+    { id: "leave", label: "ยื่นใบลา", desc: "ส่งใบลาป่วย/ลากิจพร้อมแนบเอกสาร", icon: Send },
+    { id: "messages", label: "ข้อความ", desc: "พูดคุยกับครูประจำวิชา", icon: MessageSquare },
+    { id: "behavior", label: "พฤติกรรม & กิจกรรม", desc: "คะแนนความประพฤติและชั่วโมงจิตอาสา", icon: Award },
+    { id: "profile", label: "โปรไฟล์", desc: "ข้อมูลส่วนตัวและเปลี่ยนรหัสผ่าน", icon: User },
   ];
   const teacherNav = [
-    { id: "dashboard", label: "หน้าหลัก", icon: Home },
-    { id: "analytics", label: "รายงานภาพรวม", icon: TrendingUp },
-    { id: "students", label: "จัดการนักเรียน", icon: Users },
-    { id: "attendance", label: "เช็คชื่อ", icon: CheckSquare },
-    { id: "grades", label: "กรอกเกรด", icon: BookOpen },
-    { id: "assignments", label: "งาน/การบ้าน", icon: ClipboardList },
-    { id: "materials", label: "สื่อการสอน", icon: FileText },
-    { id: "quizzes", label: "คลังข้อสอบ", icon: HelpCircle },
-    { id: "timetable", label: "ตารางเรียน", icon: Table },
-    { id: "calendar", label: "ปฏิทิน/กิจกรรม", icon: Calendar },
-    { id: "leave", label: "อนุมัติใบลา", icon: Inbox },
-    { id: "behavior", label: "พฤติกรรม/จิตอาสา", icon: Award },
-    { id: "messages", label: "ข้อความ", icon: MessageSquare },
-    { id: "announcements", label: "ประกาศ", icon: Megaphone },
+    { id: "dashboard", label: "หน้าหลัก", desc: "ภาพรวมห้องเรียนที่สอน", icon: Home },
+    { id: "analytics", label: "รายงานภาพรวม", desc: "สรุปคะแนนและการมาเรียนแต่ละห้อง", icon: TrendingUp },
+    { id: "students", label: "จัดการนักเรียน", desc: "เพิ่ม/ลบ/ดูโปรไฟล์นักเรียน", icon: Users },
+    { id: "attendance", label: "เช็คชื่อ", desc: "บันทึกการมาเรียนแยกรายห้อง", icon: CheckSquare },
+    { id: "grades", label: "กรอกเกรด", desc: "บันทึกคะแนนแต่ละวิชา", icon: BookOpen },
+    { id: "assignments", label: "งาน/การบ้าน", desc: "สร้างงาน ตรวจ และให้คะแนน", icon: ClipboardList },
+    { id: "materials", label: "สื่อการสอน", desc: "อัปโหลดเอกสารและสื่อการสอน", icon: FileText },
+    { id: "quizzes", label: "คลังข้อสอบ", desc: "สร้างแบบทดสอบให้นักเรียนทำ", icon: HelpCircle },
+    { id: "timetable", label: "ตารางเรียน", desc: "จัดตารางสอนแยกแต่ละห้อง", icon: Table },
+    { id: "myschedule", label: "ตารางสอนของฉัน", desc: "ดูคาบสอนของตัวเองในแต่ละสัปดาห์", icon: CalendarClock },
+    { id: "calendar", label: "ปฏิทิน/กิจกรรม", desc: "เพิ่มวันหยุดและกิจกรรมของโรงเรียน", icon: Calendar },
+    { id: "leave", label: "อนุมัติใบลา", desc: "ตรวจสอบและอนุมัติใบลานักเรียน", icon: Inbox },
+    { id: "behavior", label: "พฤติกรรม/จิตอาสา", desc: "บันทึกคะแนนความประพฤติและชั่วโมงจิตอาสา", icon: Award },
+    { id: "messages", label: "ข้อความ", desc: "ตอบคำถามนักเรียน", icon: MessageSquare },
+    { id: "announcements", label: "ประกาศ", desc: "แจ้งข่าวสารถึงนักเรียนทุกคน", icon: Megaphone },
   ];
   const adminNav = [
-    { id: "dashboard", label: "ภาพรวมระบบ", icon: Home },
-    { id: "students", label: "จัดการนักเรียน", icon: Users },
-    { id: "staff", label: "จัดการบัญชีครู/แอดมิน", icon: Shield },
-    { id: "classes", label: "จัดการห้องเรียน", icon: Table },
-    { id: "sitecontent", label: "แก้ไขข้อความเว็บไซต์", icon: FileText },
+    { id: "dashboard", label: "ภาพรวมระบบ", desc: "สถิติรวมของทั้งระบบ", icon: Home },
+    { id: "students", label: "จัดการนักเรียน", desc: "แก้ไขข้อมูล/รหัสผ่านนักเรียน", icon: Users },
+    { id: "staff", label: "จัดการบัญชีครู/แอดมิน", desc: "เพิ่ม/ลบบัญชี ตั้งรหัสผ่านใหม่", icon: Shield },
+    { id: "classes", label: "จัดการห้องเรียน", desc: "เพิ่ม/ลบรายชื่อห้องเรียน", icon: Table },
+    { id: "sitecontent", label: "แก้ไขข้อความเว็บไซต์", desc: "แก้ชื่อสถาบันและข้อความหน้าเว็บ", icon: FileText },
   ];
   const nav = role === "admin" ? adminNav : role === "teacher" ? teacherNav : studentNav;
 
   return (
-    <aside className="sp-sidebar">
-      <button className="sp-sidebar-brand sp-sidebar-brand-btn" onClick={() => setShowAbout(true)} title="รายละเอียดเว็บไซต์และตั้งค่า">
-        <img src={LOGO} alt="ตราวิทยาลัย" className="sp-seal sp-seal-sm" />
-        <div className="sp-brand-name-sm">{siteContent?.appShortName || "B.T.AD"}</div>
-      </button>
-      {showAbout && <AboutPanel onClose={() => setShowAbout(false)} theme={theme} setTheme={setTheme} siteContent={siteContent} />}
-      {isAdminAccount && (
-        <div className="sp-viewswitch">
-          <div className="sp-viewswitch-label">มุมมอง</div>
-          <button className={"sp-viewswitch-btn" + (role === "admin" ? " active" : "")} onClick={() => onSwitchViewMode("admin")}><Shield size={14} /> แอดมิน</button>
-          <button className={"sp-viewswitch-btn" + (role === "teacher" ? " active" : "")} onClick={() => onSwitchViewMode("teacher")}><Users size={14} /> ครู</button>
-          <button className={"sp-viewswitch-btn" + (role === "student" ? " active" : "")} onClick={() => onSwitchViewMode("student")}><User size={14} /> นักเรียน</button>
+    <>
+      <aside className="sp-sidebar-desktop">
+        <button className="sp-sidebar-brand sp-sidebar-brand-btn" onClick={() => setShowAbout(true)} title="รายละเอียดเว็บไซต์และตั้งค่า">
+          <img src={LOGO} alt="ตราวิทยาลัย" className="sp-seal sp-seal-sm" />
+          <div className="sp-brand-name-sm">{siteContent?.appShortName || "B.T.AD"}</div>
+        </button>
+        {isAdminAccount && (
+          <div className="sp-viewswitch">
+            <div className="sp-viewswitch-label">มุมมอง</div>
+            <button className={"sp-viewswitch-btn" + (role === "admin" ? " active" : "")} onClick={() => onSwitchViewMode("admin")}><Shield size={14} /> แอดมิน</button>
+            <button className={"sp-viewswitch-btn" + (role === "teacher" ? " active" : "")} onClick={() => onSwitchViewMode("teacher")}><Users size={14} /> ครู</button>
+            <button className={"sp-viewswitch-btn" + (role === "student" ? " active" : "")} onClick={() => onSwitchViewMode("student")}><User size={14} /> นักเรียน</button>
+          </div>
+        )}
+        <nav className="sp-nav">
+          {nav.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button key={item.id} className={"sp-nav-item" + (view === item.id ? " active" : "")} onClick={() => setView(item.id)}>
+                <Icon size={18} /> <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <div className="sp-sidebar-foot">
+          <div className="sp-sidebar-user">{name}</div>
+          <button className="sp-nav-item sp-logout" onClick={onLogout}><LogOut size={18} /> <span>ออกจากระบบ</span></button>
         </div>
-      )}
-      <nav className="sp-nav">
-        {nav.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button key={item.id} className={"sp-nav-item" + (view === item.id ? " active" : "")} onClick={() => setView(item.id)}>
-              <Icon size={18} /> <span>{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-      <div className="sp-sidebar-foot">
-        <div className="sp-sidebar-user">{name}</div>
-        <button className="sp-nav-item sp-logout" onClick={onLogout}><LogOut size={18} /> <span>ออกจากระบบ</span></button>
+      </aside>
+
+      <div className="sp-mobile-topbar">
+        <button className="sp-mobile-topbar-brand" onClick={() => setShowAbout(true)} title="รายละเอียดเว็บไซต์และตั้งค่า">
+          <img src={LOGO} alt="ตราวิทยาลัย" className="sp-seal sp-seal-sm" />
+          <span className="sp-brand-name-sm">{siteContent?.appShortName || "B.T.AD"}</span>
+        </button>
+        <button className="sp-hamburger-btn" onClick={() => setShowMenu(true)} title="เปิดเมนู">
+          <Menu size={20} />
+        </button>
       </div>
-    </aside>
+
+      {showAbout && <AboutPanel onClose={() => setShowAbout(false)} theme={theme} setTheme={setTheme} siteContent={siteContent} />}
+      {showMenu && (
+        <NavMenuPanel
+          nav={nav} view={view} setView={setView} onClose={() => setShowMenu(false)}
+          isAdminAccount={isAdminAccount} role={role} onSwitchViewMode={onSwitchViewMode} name={name}
+          onLogout={onLogout} onOpenAbout={() => setShowAbout(true)}
+        />
+      )}
+    </>
   );
 }
 
@@ -1035,6 +1206,8 @@ function StudentAttendance({ data, student }) {
 function StudentAssignments({ data, student, persist }) {
   const [uploadingId, setUploadingId] = useState(null);
   const [errorId, setErrorId] = useState(null);
+  const [commentDrafts, setCommentDrafts] = useState({});
+  const [savedId, setSavedId] = useState(null);
 
   const list = data.assignments.filter((a) => a.class === student.class).map((a) => ({ ...a, d: daysUntil(a.dueDate) })).sort((a, b) => a.d - b.d);
 
@@ -1060,6 +1233,17 @@ function StudentAssignments({ data, student, persist }) {
     }
   }
 
+  function saveComment(assignmentId) {
+    const text = (commentDrafts[assignmentId] || "").trim();
+    const existing = (data.assignmentComments || []).find((c) => c.assignmentId === assignmentId && c.studentId === student.id);
+    const nextComments = existing
+      ? data.assignmentComments.map((c) => (c === existing ? { ...c, comment: text, updatedAt: new Date().toISOString().slice(0, 16).replace("T", " ") } : c))
+      : [...(data.assignmentComments || []), { id: genId("cm"), assignmentId, studentId: student.id, comment: text, updatedAt: new Date().toISOString().slice(0, 16).replace("T", " ") }];
+    persist({ ...data, assignmentComments: nextComments });
+    setSavedId(assignmentId);
+    setTimeout(() => setSavedId(null), 2000);
+  }
+
   return (
     <div>
       <h1>งานที่ต้องส่ง</h1>
@@ -1067,6 +1251,8 @@ function StudentAssignments({ data, student, persist }) {
         {list.length === 0 && <div className="sp-empty">ยังไม่มีงานที่ต้องส่ง</div>}
         {list.map((a) => {
           const sub = (data.submissions || []).find((s) => s.assignmentId === a.id && s.studentId === student.id);
+          const myComment = (data.assignmentComments || []).find((c) => c.assignmentId === a.id && c.studentId === student.id);
+          const draft = commentDrafts[a.id] !== undefined ? commentDrafts[a.id] : (myComment ? myComment.comment : "");
           return (
             <div key={a.id} className="sp-list-row sp-assignment-row">
               <div>
@@ -1103,6 +1289,16 @@ function StudentAssignments({ data, student, persist }) {
                   </div>
                 )}
                 {errorId === a.id && <div className="sp-error"><AlertCircle size={14} /> อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง</div>}
+                <div className="sp-comment-box">
+                  <input
+                    className="sp-input sp-comment-input"
+                    placeholder="ความคิดเห็นถึงครู (เห็นแค่คุณกับครู/แอดมินเท่านั้น)"
+                    value={draft}
+                    onChange={(e) => setCommentDrafts((d) => ({ ...d, [a.id]: e.target.value }))}
+                  />
+                  <button className="sp-icon-btn" type="button" onClick={() => saveComment(a.id)}><Check size={14} /></button>
+                </div>
+                {savedId === a.id && <div className="sp-success sp-comment-saved">บันทึกความคิดเห็นแล้ว</div>}
               </div>
             </div>
           );
@@ -1392,6 +1588,7 @@ function StudentMessages({ data, student, persist }) {
   const [body, setBody] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editBody, setEditBody] = useState("");
+  const [chatError, setChatError] = useState("");
   const threadEndRef = useRef(null);
 
   const thread = (data.messages || [])
@@ -1404,6 +1601,8 @@ function StudentMessages({ data, student, persist }) {
 
   function send() {
     if (!body.trim() || !teacherUsername) return;
+    if (containsProfanity(body)) { setChatError("ข้อความมีคำไม่สุภาพ กรุณาแก้ไขก่อนส่งครับ"); return; }
+    setChatError("");
     const msg = { id: genId("msg"), studentId: student.id, teacherUsername, sender: "student", body: body.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false };
     persist({ ...data, messages: [...(data.messages || []), msg] });
     setBody("");
@@ -1411,6 +1610,8 @@ function StudentMessages({ data, student, persist }) {
 
   function saveEdit(id) {
     if (!editBody.trim()) return;
+    if (containsProfanity(editBody)) { setChatError("ข้อความมีคำไม่สุภาพ กรุณาแก้ไขก่อนบันทึกครับ"); return; }
+    setChatError("");
     persist({ ...data, messages: data.messages.map((m) => (m.id === id ? { ...m, body: editBody.trim(), edited: true } : m)) });
     setEditingId(null);
   }
@@ -1458,9 +1659,10 @@ function StudentMessages({ data, student, persist }) {
       </div>
       <div className="sp-card">
         <div className="sp-inline-form">
-          <input className="sp-input" placeholder="พิมพ์ข้อความถึงครู..." value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+          <input className="sp-input" placeholder="พิมพ์ข้อความถึงครู..." value={body} onChange={(e) => { setBody(e.target.value); if (chatError) setChatError(""); }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
           <button className="sp-btn-primary" type="button" onClick={send}><Send size={16} /> ส่ง</button>
         </div>
+        {chatError && <div className="sp-error"><AlertCircle size={16} /> {chatError}</div>}
       </div>
     </div>
   );
@@ -2346,6 +2548,7 @@ function TeacherMessages({ data, persist, session }) {
   const [reply, setReply] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editBody, setEditBody] = useState("");
+  const [chatError, setChatError] = useState("");
   const threadEndRef = useRef(null);
 
   const myMessages = (data.messages || []).filter((m) => m.teacherUsername === session.username);
@@ -2354,6 +2557,8 @@ function TeacherMessages({ data, persist, session }) {
 
   function send() {
     if (!reply.trim() || !openStudentId) return;
+    if (containsProfanity(reply)) { setChatError("ข้อความมีคำไม่สุภาพ กรุณาแก้ไขก่อนส่งครับ"); return; }
+    setChatError("");
     const msg = { id: genId("msg"), studentId: openStudentId, teacherUsername: session.username, sender: "teacher", body: reply.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false };
     persist({ ...data, messages: [...(data.messages || []), msg] });
     setReply("");
@@ -2361,6 +2566,8 @@ function TeacherMessages({ data, persist, session }) {
 
   function saveEdit(id) {
     if (!editBody.trim()) return;
+    if (containsProfanity(editBody)) { setChatError("ข้อความมีคำไม่สุภาพ กรุณาแก้ไขก่อนบันทึกครับ"); return; }
+    setChatError("");
     persist({ ...data, messages: data.messages.map((m) => (m.id === id ? { ...m, body: editBody.trim(), edited: true } : m)) });
     setEditingId(null);
   }
@@ -2418,9 +2625,10 @@ function TeacherMessages({ data, persist, session }) {
                 <div ref={threadEndRef} />
               </div>
               <div className="sp-inline-form" style={{ marginTop: "12px" }}>
-                <input className="sp-input" placeholder="พิมพ์ข้อความตอบกลับ..." value={reply} onChange={(e) => setReply(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+                <input className="sp-input" placeholder="พิมพ์ข้อความตอบกลับ..." value={reply} onChange={(e) => { setReply(e.target.value); if (chatError) setChatError(""); }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
                 <button className="sp-btn-primary" type="button" onClick={send}><Send size={16} /> ส่ง</button>
               </div>
+              {chatError && <div className="sp-error"><AlertCircle size={16} /> {chatError}</div>}
             </>
           )}
         </div>
@@ -2724,6 +2932,7 @@ function TeacherViews({ view, data, persist, session }) {
     case "materials": return <TeacherMaterials data={data} persist={persist} />;
     case "quizzes": return <TeacherQuizzes data={data} persist={persist} />;
     case "timetable": return <TeacherTimetable data={data} persist={persist} />;
+    case "myschedule": return <TeacherMySchedule data={data} session={session} />;
     case "leave": return <TeacherLeaveApproval data={data} persist={persist} />;
     case "behavior": return <TeacherBehavior data={data} persist={persist} />;
     case "calendar": return <TeacherCalendar data={data} persist={persist} />;
@@ -2739,6 +2948,8 @@ function GlobalStyle() {
   return (
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@500;600;700&family=Sarabun:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap');
+
+      html, body { margin:0; padding:0; }
 
       .sp-app {
         --bg:#F5F7FB; --surface:#FFFFFF; --ink:#14181A; --muted:#6B7280; --line:#DCE3EE;
@@ -2756,15 +2967,20 @@ function GlobalStyle() {
       .sp-app h1 { font-family:'Kanit', serif; font-size:1.5rem; font-weight:600; margin:0 0 20px; }
       .sp-loading { display:flex; align-items:center; justify-content:center; width:100%; min-height:100vh; color:var(--muted); }
 
-      .sp-sidebar { width:240px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:20px 14px; }
+      .sp-sidebar-desktop { width:240px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--line); display:flex; flex-direction:column; padding:20px 14px; }
+      .sp-mobile-topbar { display:none; }
       .sp-sidebar-brand { display:flex; align-items:center; gap:10px; padding:0 6px 20px; border-bottom:1px solid var(--line); margin-bottom:16px; }
       .sp-seal { width:44px; height:44px; border-radius:50%; object-fit:cover; flex-shrink:0; box-shadow:0 0 0 1px var(--line); }
-      .sp-seal-sm { width:32px; height:32px; }
+      .sp-seal-sm { width:36px; height:36px; }
       .sp-login-brand { align-items:center; }
       .sp-brand-name { line-height:1.3; max-width:260px; }
       .sp-brand-name-sm { font-family:'Kanit', serif; font-weight:700; font-size:1.1rem; color:var(--accent); letter-spacing:0.02em; }
       .sp-sidebar-brand-btn { border:none; background:transparent; cursor:pointer; width:100%; }
       .sp-sidebar-brand-btn:hover .sp-brand-name-sm { color:var(--accent-hover); }
+      .sp-hamburger-btn { display:flex; align-items:center; justify-content:center; width:40px; height:40px; border:1px solid var(--line); background:var(--bg); color:var(--ink); border-radius:8px; cursor:pointer; flex-shrink:0; }
+      .sp-hamburger-btn:hover { border-color:var(--accent); color:var(--accent); }
+      .sp-logout-icon { color:var(--accent2); border-color:var(--accent2-bg); }
+      .sp-logout-icon:hover { background:var(--accent2-bg); border-color:var(--accent2); color:var(--accent2); }
       .sp-nav { display:flex; flex-direction:column; gap:2px; flex:1; }
       .sp-nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border:none; background:transparent; border-radius:6px; color:var(--muted); font-family:'Sarabun'; font-size:0.92rem; cursor:pointer; text-align:left; }
       .sp-nav-item:hover { background:var(--bg); color:var(--ink); }
@@ -2773,6 +2989,24 @@ function GlobalStyle() {
       .sp-sidebar-user { font-size:0.8rem; color:var(--muted); padding:0 12px 8px; }
       .sp-logout { color:var(--accent2); }
       .sp-logout:hover { background:var(--accent2-bg); }
+
+      .sp-navmenu-panel { position:fixed; top:0; left:0; bottom:0; width:320px; max-width:88vw; background:var(--surface); z-index:41; padding:20px 16px; box-shadow:2px 0 24px rgba(0,0,0,0.2); display:flex; flex-direction:column; overflow-y:auto; animation: sp-slide-in-left 0.28s cubic-bezier(0.16,1,0.3,1); }
+      .sp-navmenu-divider { height:1px; background:var(--line); margin:10px 0; }
+      .sp-navmenu-logout { color:var(--accent2); }
+      .sp-navmenu-logout:hover { background:var(--accent2-bg); }
+      @keyframes sp-slide-in-left { from { transform:translateX(-100%); } to { transform:translateX(0); } }
+      @keyframes sp-fade-in { from { opacity:0; } to { opacity:1; } }
+      .sp-navmenu-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+      .sp-navmenu-title { font-family:'Kanit'; font-weight:700; font-size:1.1rem; }
+      .sp-navmenu-user { font-size:0.78rem; color:var(--muted); margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--line); }
+      .sp-navmenu-list { display:flex; flex-direction:column; gap:2px; }
+      .sp-navmenu-item { display:flex; align-items:flex-start; gap:12px; padding:11px 10px; border:none; background:transparent; border-radius:8px; cursor:pointer; text-align:left; color:var(--ink); }
+      .sp-navmenu-item:hover { background:var(--bg); }
+      .sp-navmenu-item.active { background:var(--accent); color:#fff; }
+      .sp-navmenu-item.active .sp-navmenu-item-desc { color:rgba(255,255,255,0.8); }
+      .sp-navmenu-item svg { flex-shrink:0; margin-top:2px; }
+      .sp-navmenu-item-label { font-weight:600; font-size:0.9rem; }
+      .sp-navmenu-item-desc { font-size:0.75rem; color:var(--muted); margin-top:2px; line-height:1.3; }
 
       .sp-main { flex:1; padding:32px 40px; overflow-y:auto; }
 
@@ -2883,8 +3117,8 @@ function GlobalStyle() {
       .sp-legend-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); flex-shrink:0; align-self:center; }
       .sp-legend-name { font-family:'Sarabun'; font-weight:400; color:var(--muted); }
 
-      .sp-panel-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:40; }
-      .sp-about-panel { position:fixed; top:0; left:0; bottom:0; width:300px; max-width:85vw; background:var(--surface); z-index:41; padding:28px 24px; box-shadow:2px 0 24px rgba(0,0,0,0.2); display:flex; flex-direction:column; align-items:center; text-align:center; overflow-y:auto; }
+      .sp-panel-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:40; animation: sp-fade-in 0.2s ease-out; }
+      .sp-about-panel { position:fixed; top:0; left:0; bottom:0; width:300px; max-width:85vw; background:var(--surface); z-index:41; padding:28px 24px; box-shadow:2px 0 24px rgba(0,0,0,0.2); display:flex; flex-direction:column; align-items:center; text-align:center; overflow-y:auto; animation: sp-slide-in-left 0.28s cubic-bezier(0.16,1,0.3,1); }
       .sp-panel-close { position:absolute; top:14px; right:14px; }
       .sp-about-logo { width:88px; height:88px; border-radius:50%; object-fit:cover; margin-top:20px; box-shadow:0 0 0 1px var(--line); }
       .sp-about-name { font-family:'Kanit'; font-weight:700; font-size:1.4rem; color:var(--accent); margin-top:14px; }
@@ -2958,13 +3192,19 @@ function GlobalStyle() {
 
       @media (max-width: 860px) {
         .sp-app { flex-direction:column; }
-        .sp-sidebar { width:100%; flex-direction:row; align-items:center; padding:10px 14px; overflow-x:auto; }
-        .sp-sidebar-brand { border-bottom:none; margin-bottom:0; padding-bottom:0; border-right:1px solid var(--line); padding-right:14px; }
-        .sp-nav { flex-direction:row; flex:none; }
-        .sp-nav-item span { display:none; }
-        .sp-sidebar-foot { display:flex; align-items:center; border-top:none; border-left:1px solid var(--line); margin-top:0; padding-top:0; padding-left:14px; margin-left:auto; }
-        .sp-sidebar-user { display:none; }
-        .sp-main { padding:20px; }
+        .sp-main { padding:16px; padding-top:72px; width:100%; }
+        .sp-sidebar-desktop { display:none; }
+        .sp-mobile-topbar {
+          display:flex; align-items:center; justify-content:space-between;
+          position:fixed; top:0; left:0; right:0; z-index:39;
+          height:56px; padding:0 14px; background:var(--surface); border-bottom:1px solid var(--line);
+          box-shadow:0 2px 10px rgba(0,0,0,0.06);
+        }
+        .sp-mobile-topbar-brand { display:flex; align-items:center; gap:8px; background:none; border:none; cursor:pointer; padding:0; }
+        .sp-mobile-topbar .sp-seal-sm { width:32px; height:32px; }
+        .sp-mobile-topbar .sp-brand-name-sm { font-size:1rem; }
+        .sp-navmenu-panel { width:280px; }
+        .sp-admin-return-bar { position:sticky; top:0; z-index:20; }
         .sp-stats-grid { grid-template-columns:repeat(2,1fr); }
         .sp-two-col { grid-template-columns:1fr; }
         .sp-form-grid { grid-template-columns:1fr; }
@@ -3008,6 +3248,13 @@ export default function App() {
   }
 
   function mergeWithSeed(loaded) {
+    // IMPORTANT: only top up missing seed items ONE TIME (for accounts with old
+    // stale data that predates a feature). Once _seeded is true, deletions the
+    // user makes must stick — we must NOT keep re-adding deleted seed items back
+    // on every load/poll, or "delete" would appear broken (item reappears later).
+    if (loaded._seeded) {
+      return { ...SEED, ...loaded };
+    }
     const merged = { ...SEED, ...loaded };
     merged.users = mergeById(loaded.users, SEED.users, "username");
     merged.students = mergeById(loaded.students, SEED.students, "id");
@@ -3023,6 +3270,7 @@ export default function App() {
     merged.attendance = mergeById(loaded.attendance, SEED.attendance, "id");
     merged.behaviorLogs = mergeById(loaded.behaviorLogs, SEED.behaviorLogs, "id");
     merged.portfolioEntries = mergeById(loaded.portfolioEntries, SEED.portfolioEntries, "id");
+    merged._seeded = true;
     return merged;
   }
 
@@ -3030,11 +3278,17 @@ export default function App() {
     try {
       const remote = await sbGetState();
       if (remote) {
-        setData(mergeWithSeed(remote));
+        const merged = mergeWithSeed(remote);
+        setData(merged);
         setBackendError("");
+        if (!remote._seeded) {
+          // One-time top-up happened just now — save it so deletions stick from here on.
+          sbSaveState(merged).catch((e) => console.error("seed top-up save failed", e));
+        }
       } else {
-        await sbSaveState(SEED);
-        setData(SEED);
+        const fresh = { ...SEED, _seeded: true };
+        await sbSaveState(fresh);
+        setData(fresh);
         setBackendError("");
       }
     } catch (e) {
