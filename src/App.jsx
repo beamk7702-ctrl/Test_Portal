@@ -3,7 +3,7 @@ import {
   Calendar, ClipboardList, BookOpen, User, LogOut,
   Users, CheckSquare, Megaphone, Plus, Trash2, AlertCircle, Home,
   Table, X, Sun, Moon, FileText, HelpCircle, Send, MessageSquare,
-  Award, Inbox, TrendingUp, Check, XCircle, Paperclip, Shield, Camera, ArrowLeft, GripVertical, Menu, Info, CalendarClock, MessageCircleWarning,
+  Award, Inbox, TrendingUp, Check, XCircle, Paperclip, Shield, Camera, ArrowLeft, GripVertical, Menu, Info, CalendarClock, MessageCircleWarning, Eye, EyeOff, RefreshCw,
 } from "lucide-react";
 
 const STORAGE_KEY = "smudphok:data";
@@ -806,14 +806,19 @@ function RegisterForm({ classOptions, onRegister, onBackToLogin }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  function submit() {
+  async function submit() {
     if (!name || !studentCode || !className || !username || !email || !password) {
       setError("กรอกข้อมูลให้ครบทุกช่องครับ");
       return;
     }
-    const result = onRegister({ name, studentCode, className, username, email, password });
+    setError("");
+    setSubmitting(true);
+    const result = await onRegister({ name, studentCode, className, username, email, password });
+    setSubmitting(false);
     if (result && result.error) {
       setError(result.error);
     }
@@ -835,9 +840,14 @@ function RegisterForm({ classOptions, onRegister, onBackToLogin }) {
       <label className="sp-label">อีเมล</label>
       <input className="sp-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
       <label className="sp-label">ตั้งรหัสผ่าน</label>
-      <input className="sp-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+      <div className="sp-password-field">
+        <input className="sp-input" type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+        <button type="button" className="sp-password-toggle" onClick={() => setShowPw((v) => !v)} title={showPw ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}>
+          {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
       {error && <div className="sp-error"><AlertCircle size={16} /> {error}</div>}
-      <button type="button" onClick={submit} className="sp-btn-primary sp-login-submit">สมัครสมาชิก</button>
+      <button type="button" onClick={submit} disabled={submitting} className="sp-btn-primary sp-login-submit">{submitting ? "กำลังบันทึก..." : "สมัครสมาชิก"}</button>
       <button type="button" onClick={onBackToLogin} className="sp-link-btn">กลับไปหน้าเข้าสู่ระบบ</button>
     </div>
   );
@@ -848,6 +858,7 @@ function Login({ users, students, classes = [], siteContent = {}, onLogin, onReg
   const [role, setRole] = useState("student");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
 
   function handleSubmit() {
@@ -885,7 +896,12 @@ function Login({ users, students, classes = [], siteContent = {}, onLogin, onReg
               <label className="sp-label">ชื่อผู้ใช้ หรือ อีเมล (Username or Email)</label>
               <input className="sp-input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username หรือ email" />
               <label className="sp-label">รหัสผ่าน</label>
-              <input className="sp-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }} placeholder="password" />
+              <div className="sp-password-field">
+                <input className="sp-input" type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }} placeholder="password" />
+                <button type="button" className="sp-password-toggle" onClick={() => setShowPw((v) => !v)} title={showPw ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}>
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               {error && <div className="sp-error"><AlertCircle size={16} /> {error}</div>}
               <button type="button" onClick={handleSubmit} className="sp-btn-primary sp-login-submit">เข้าสู่ระบบ</button>
             </div>
@@ -974,7 +990,7 @@ function NavMenuPanel({ nav, view, setView, onClose, isAdminAccount, role, onSwi
   );
 }
 
-function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteContent, isAdminAccount, onSwitchViewMode }) {
+function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteContent, isAdminAccount, onSwitchViewMode, onRefresh }) {
   const [showAbout, setShowAbout] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const studentNav = [
@@ -1020,7 +1036,7 @@ function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteCon
   return (
     <>
       <aside className="sp-sidebar-desktop">
-        <button className="sp-sidebar-brand sp-sidebar-brand-btn" onClick={() => setShowAbout(true)} title="รายละเอียดเว็บไซต์และตั้งค่า">
+        <button className="sp-sidebar-brand sp-sidebar-brand-btn" onClick={onRefresh} title="รีเฟรชข้อมูล">
           <img src={LOGO} alt="ตราวิทยาลัย" className="sp-seal sp-seal-sm" />
           <div className="sp-brand-name-sm">{siteContent?.appShortName || "B.T.AD"}</div>
         </button>
@@ -1044,12 +1060,15 @@ function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteCon
         </nav>
         <div className="sp-sidebar-foot">
           <div className="sp-sidebar-user">{name}</div>
+          <button className="sp-nav-item" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />} <span>{theme === "dark" ? "โหมดสว่าง" : "โหมดมืด"}</span>
+          </button>
           <button className="sp-nav-item sp-logout" onClick={onLogout}><LogOut size={18} /> <span>ออกจากระบบ</span></button>
         </div>
       </aside>
 
       <div className="sp-mobile-topbar">
-        <button className="sp-mobile-topbar-brand" onClick={() => setShowAbout(true)} title="รายละเอียดเว็บไซต์และตั้งค่า">
+        <button className="sp-mobile-topbar-brand" onClick={onRefresh} title="รีเฟรชข้อมูล">
           <img src={LOGO} alt="ตราวิทยาลัย" className="sp-seal sp-seal-sm" />
           <span className="sp-brand-name-sm">{siteContent?.appShortName || "B.T.AD"}</span>
         </button>
@@ -1156,6 +1175,12 @@ function StudentGrades({ data, student }) {
   return (
     <div>
       <div className="sp-page-head"><h1>ผลการเรียน</h1><Stamp color="var(--accent)">GPA {gpa}</Stamp></div>
+      {student.gradeReportUrl && (
+        <div className="sp-card">
+          <div className="sp-card-title">ใบเกรดจากครู</div>
+          <img src={student.gradeReportUrl} alt="ใบเกรด" className="sp-grade-report-img" />
+        </div>
+      )}
       <div className="sp-card">
         <table className="sp-table">
           <thead><tr><th>วิชา</th><th>เทอม</th><th>คะแนน</th><th>ระดับคะแนน</th></tr></thead>
@@ -1776,6 +1801,7 @@ function TeacherStaffAccounts({ data, persist, session }) {
   const [success, setSuccess] = useState("");
   const [resetTarget, setResetTarget] = useState(null);
   const [resetPw, setResetPw] = useState("");
+  const [visiblePw, setVisiblePw] = useState({});
 
   const staff = data.users.filter((u) => u.role === "teacher" || u.role === "admin");
 
@@ -1840,7 +1866,7 @@ function TeacherStaffAccounts({ data, persist, session }) {
       <div className="sp-card">
         <div className="sp-card-title">บัญชีครู/แอดมินทั้งหมด</div>
         <table className="sp-table">
-          <thead><tr><th>ชื่อ</th><th>บทบาท</th><th>Username</th><th>อีเมล</th><th></th></tr></thead>
+          <thead><tr><th>ชื่อ</th><th>บทบาท</th><th>Username</th><th>อีเมล</th><th>รหัสผ่าน</th><th></th></tr></thead>
           <tbody>
             {staff.map((s) => (
               <Fragment key={s.username}>
@@ -1849,6 +1875,12 @@ function TeacherStaffAccounts({ data, persist, session }) {
                   <td>{s.role === "admin" ? "แอดมิน" : "ครู"}</td>
                   <td>{s.username}</td>
                   <td>{s.email || "-"}</td>
+                  <td>
+                    <button className="sp-pw-reveal" type="button" onClick={() => setVisiblePw((v) => ({ ...v, [s.username]: !v[s.username] }))}>
+                      {visiblePw[s.username] ? s.password : "••••••••"}
+                      {visiblePw[s.username] ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                  </td>
                   <td style={{ display: "flex", gap: "4px" }}>
                     <button className="sp-icon-btn" onClick={() => { setResetTarget(resetTarget === s.username ? null : s.username); setResetPw(""); }} title="เปลี่ยนรหัสผ่าน"><Shield size={16} /></button>
                     {s.username !== session?.username && <button className="sp-icon-btn" onClick={() => removeStaff(s.username)}><Trash2 size={16} /></button>}
@@ -1856,7 +1888,7 @@ function TeacherStaffAccounts({ data, persist, session }) {
                 </tr>
                 {resetTarget === s.username && (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={6}>
                       <div className="sp-inline-form">
                         <input className="sp-input" type="password" placeholder={`รหัสผ่านใหม่สำหรับ ${s.name}`} value={resetPw} onChange={(e) => setResetPw(e.target.value)} />
                         <button className="sp-btn-primary" type="button" onClick={() => submitReset(s.username)}>บันทึกรหัสผ่าน</button>
@@ -1873,11 +1905,14 @@ function TeacherStaffAccounts({ data, persist, session }) {
   );
 }
 
-function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate }) {
+function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate, canViewPasswords }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: student.name, class: student.class, number: student.number, studentCode: student.studentCode || "" });
   const [newPassword, setNewPassword] = useState("");
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [pwMsg, setPwMsg] = useState("");
+  const [uploadingReport, setUploadingReport] = useState(false);
+  const [reportError, setReportError] = useState("");
 
   const grades = data.grades.filter((g) => g.studentId === student.id);
   const gpa = grades.length ? (grades.reduce((s, g) => s + scoreToPoint(g.score), 0) / grades.length).toFixed(2) : "-";
@@ -1905,6 +1940,27 @@ function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate }
     setNewPassword("");
     setPwMsg("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
     setTimeout(() => setPwMsg(""), 2500);
+  }
+
+  async function handleReportUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setReportError("กรุณาเลือกไฟล์รูปภาพเท่านั้น (jpg, png)"); return; }
+    setReportError("");
+    setUploadingReport(true);
+    try {
+      const uploaded = await sbUploadFile(file);
+      await persist({ ...data, students: data.students.map((s) => (s.id === student.id ? { ...s, gradeReportUrl: uploaded.fileUrl } : s)) });
+    } catch (err) {
+      setReportError(err.message || "อัปโหลดรูปไม่สำเร็จ");
+    } finally {
+      setUploadingReport(false);
+    }
+  }
+
+  function removeReport() {
+    persist({ ...data, students: data.students.map((s) => (s.id === student.id ? { ...s, gradeReportUrl: null } : s)) });
   }
 
   return (
@@ -1939,7 +1995,21 @@ function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate }
             <button className="sp-btn-primary" type="button" onClick={saveEdit}>บันทึกการแก้ไข</button>
           </div>
           <div className="sp-about-divider" />
-          <div className="sp-card-title">ตั้งรหัสผ่านใหม่ให้นักเรียนคนนี้</div>
+          {canViewPasswords && (
+            <>
+              <div className="sp-card-title">รหัสผ่านปัจจุบัน</div>
+              {(() => {
+                const u = data.users.find((u) => u.studentId === student.id);
+                return u ? (
+                  <button className="sp-pw-reveal" type="button" onClick={() => setShowCurrentPw((v) => !v)}>
+                    {showCurrentPw ? u.password : "••••••••"}
+                    {showCurrentPw ? <EyeOff size={13} /> : <Eye size={13} />}
+                  </button>
+                ) : <div className="sp-empty">ไม่พบบัญชีผู้ใช้</div>;
+              })()}
+            </>
+          )}
+          <div className="sp-card-title" style={{ marginTop: "16px" }}>ตั้งรหัสผ่านใหม่ให้นักเรียนคนนี้</div>
           <div className="sp-inline-form">
             <input className="sp-input" type="password" placeholder="รหัสผ่านใหม่" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             <button className="sp-btn-primary" type="button" onClick={resetPassword}>บันทึกรหัสผ่าน</button>
@@ -1947,6 +2017,28 @@ function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate }
           {pwMsg && <div className="sp-success">{pwMsg}</div>}
         </div>
       )}
+
+      <div className="sp-card">
+        <div className="sp-card-title">รูปใบเกรด (แสดงให้นักเรียนเห็นโดยตรง ไม่ต้องดาวน์โหลดไฟล์)</div>
+        {student.gradeReportUrl ? (
+          <div className="sp-grade-report-preview">
+            <img src={student.gradeReportUrl} alt="ใบเกรด" className="sp-grade-report-img" />
+            <div className="sp-grade-report-actions">
+              <label className="sp-upload-btn">
+                <Camera size={14} /> {uploadingReport ? "กำลังอัปโหลด..." : "เปลี่ยนรูป"}
+                <input type="file" accept="image/*" style={{ display: "none" }} disabled={uploadingReport} onChange={handleReportUpload} />
+              </label>
+              <button className="sp-icon-btn" type="button" onClick={removeReport} title="ลบรูปใบเกรด"><Trash2 size={16} /></button>
+            </div>
+          </div>
+        ) : (
+          <label className="sp-upload-btn">
+            <Camera size={14} /> {uploadingReport ? "กำลังอัปโหลด..." : "อัปโหลดรูปใบเกรด"}
+            <input type="file" accept="image/*" style={{ display: "none" }} disabled={uploadingReport} onChange={handleReportUpload} />
+          </label>
+        )}
+        {reportError && <div className="sp-error"><AlertCircle size={14} /> {reportError}</div>}
+      </div>
 
       <div className="sp-stats-grid">
         <div className="sp-card sp-stat"><div className="sp-stat-label">เกรดเฉลี่ย</div><div className="sp-stat-value">{gpa}</div></div>
@@ -2004,11 +2096,12 @@ function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate }
   );
 }
 
-function TeacherStudents({ data, persist, onImpersonateStudent }) {
+function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords }) {
   const [form, setForm] = useState({ name: "", class: (data.classes && data.classes[0]) || "", number: "", studentCode: "", username: "", password: "1234" });
   const [showForm, setShowForm] = useState(false);
   const [viewingId, setViewingId] = useState(null);
   const [classFilter, setClassFilter] = useState("all");
+  const [visiblePw, setVisiblePw] = useState({});
 
   function addStudent() {
     if (!form.name || !form.username) return;
@@ -2033,7 +2126,7 @@ function TeacherStudents({ data, persist, onImpersonateStudent }) {
   if (viewingId) {
     const student = data.students.find((s) => s.id === viewingId);
     if (!student) { setViewingId(null); return null; }
-    return <TeacherStudentProfile data={data} student={student} persist={persist} onBack={() => setViewingId(null)} onImpersonate={onImpersonateStudent} />;
+    return <TeacherStudentProfile data={data} student={student} persist={persist} onBack={() => setViewingId(null)} onImpersonate={onImpersonateStudent} canViewPasswords={canViewPasswords} />;
   }
 
   const visibleStudents = classFilter === "all" ? data.students : data.students.filter((s) => s.class === classFilter);
@@ -2071,13 +2164,23 @@ function TeacherStudents({ data, persist, onImpersonateStudent }) {
       </div>
       <div className="sp-card">
         <table className="sp-table">
-          <thead><tr><th>เลขที่</th><th>ชื่อ</th><th>รหัสนักเรียน</th><th>ชั้น</th><th>Username</th><th></th></tr></thead>
+          <thead><tr><th>เลขที่</th><th>ชื่อ</th><th>รหัสนักเรียน</th><th>ชั้น</th><th>Username</th>{canViewPasswords && <th>รหัสผ่าน</th>}<th></th></tr></thead>
           <tbody>
             {visibleStudents.map((s) => {
               const u = data.users.find((u) => u.studentId === s.id);
               return (
                 <tr key={s.id}>
                   <td>{s.number}</td><td>{s.name}</td><td>{s.studentCode || "-"}</td><td>{s.class}</td><td>{u ? u.username : "-"}</td>
+                  {canViewPasswords && (
+                    <td>
+                      {u ? (
+                        <button className="sp-pw-reveal" type="button" onClick={() => setVisiblePw((v) => ({ ...v, [s.id]: !v[s.id] }))}>
+                          {visiblePw[s.id] ? u.password : "••••••••"}
+                          {visiblePw[s.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      ) : "-"}
+                    </td>
+                  )}
                   <td style={{ display: "flex", gap: "4px" }}>
                     <button className="sp-icon-btn" onClick={() => setViewingId(s.id)} title="ดูโปรไฟล์"><User size={16} /></button>
                     <button className="sp-icon-btn" onClick={() => removeStudent(s.id)}><Trash2 size={16} /></button>
@@ -2258,21 +2361,27 @@ function TeacherAssignments({ data, persist }) {
                     const sub = subsForA.find((x) => x.studentId === s.id);
                     const key = sub ? sub.id : null;
                     const inputVal = gradeInputs[key] || { score: sub?.score ?? "", feedback: sub?.feedback ?? "" };
+                    const comment = (data.assignmentComments || []).find((c) => c.assignmentId === a.id && c.studentId === s.id);
                     return (
-                      <div key={s.id} className="sp-list-row">
+                      <div key={s.id} className="sp-list-row sp-teacher-submission-row">
                         <div className="sp-attend-name"><Avatar name={s.name} avatarDataUrl={s.avatarDataUrl} size={30} /> <span>{s.name}</span></div>
-                        {!sub ? (
-                          <span className="sp-pill overdue">ยังไม่ส่ง</span>
-                        ) : (
-                          <div className="sp-grade-box">
-                            <button className="sp-file-link" type="button" onClick={() => sbDownloadFile(sub.fileUrl, sub.fileName)}><Paperclip size={12} /> {sub.fileName}</button>
-                            <input className="sp-input sp-grade-input" type="number" placeholder="คะแนน" value={inputVal.score}
-                              onChange={(e) => setGradeInputs((g) => ({ ...g, [key]: { ...inputVal, score: e.target.value } }))} />
-                            <input className="sp-input" placeholder="ความเห็น" value={inputVal.feedback}
-                              onChange={(e) => setGradeInputs((g) => ({ ...g, [key]: { ...inputVal, feedback: e.target.value } }))} />
-                            <button className="sp-btn-primary" type="button" onClick={() => gradeSubmission(sub.id, inputVal.score, inputVal.feedback)}>บันทึก</button>
-                          </div>
-                        )}
+                        <div className="sp-submission-right">
+                          {!sub ? (
+                            <span className="sp-pill overdue">ยังไม่ส่ง</span>
+                          ) : (
+                            <div className="sp-grade-box">
+                              <button className="sp-file-link" type="button" onClick={() => sbDownloadFile(sub.fileUrl, sub.fileName)}><Paperclip size={12} /> {sub.fileName}</button>
+                              <input className="sp-input sp-grade-input" type="number" placeholder="คะแนน" value={inputVal.score}
+                                onChange={(e) => setGradeInputs((g) => ({ ...g, [key]: { ...inputVal, score: e.target.value } }))} />
+                              <input className="sp-input" placeholder="ความเห็น" value={inputVal.feedback}
+                                onChange={(e) => setGradeInputs((g) => ({ ...g, [key]: { ...inputVal, feedback: e.target.value } }))} />
+                              <button className="sp-btn-primary" type="button" onClick={() => gradeSubmission(sub.id, inputVal.score, inputVal.feedback)}>บันทึก</button>
+                            </div>
+                          )}
+                          {comment && comment.comment && (
+                            <div className="sp-student-comment"><MessageCircleWarning size={12} /> {comment.comment}</div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -2915,7 +3024,7 @@ function SiteContentEditor({ data, persist }) {
 
 function AdminViews({ view, data, persist, session, onImpersonateStudent }) {
   switch (view) {
-    case "students": return <TeacherStudents data={data} persist={persist} onImpersonateStudent={onImpersonateStudent} />;
+    case "students": return <TeacherStudents data={data} persist={persist} onImpersonateStudent={onImpersonateStudent} canViewPasswords={true} />;
     case "staff": return <TeacherStaffAccounts data={data} persist={persist} session={session} />;
     case "classes": return <ManageClasses data={data} persist={persist} />;
     case "sitecontent": return <SiteContentEditor data={data} persist={persist} />;
@@ -2925,7 +3034,7 @@ function AdminViews({ view, data, persist, session, onImpersonateStudent }) {
 
 function TeacherViews({ view, data, persist, session }) {
   switch (view) {
-    case "students": return <TeacherStudents data={data} persist={persist} />;
+    case "students": return <TeacherStudents data={data} persist={persist} canViewPasswords={false} />;
     case "attendance": return <TeacherAttendance data={data} persist={persist} />;
     case "grades": return <TeacherGrades data={data} persist={persist} />;
     case "assignments": return <TeacherAssignments data={data} persist={persist} />;
@@ -2996,6 +3105,18 @@ function GlobalStyle() {
       .sp-navmenu-logout:hover { background:var(--accent2-bg); }
       @keyframes sp-slide-in-left { from { transform:translateX(-100%); } to { transform:translateX(0); } }
       @keyframes sp-fade-in { from { opacity:0; } to { opacity:1; } }
+      .sp-refresh-toast {
+        position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:50;
+        display:flex; align-items:center; gap:8px; background:var(--ink); color:var(--surface);
+        padding:10px 18px; border-radius:24px; font-size:0.85rem; font-family:'Sarabun';
+        box-shadow:0 4px 16px rgba(0,0,0,0.2); animation: sp-toast-in-out 1.6s ease;
+      }
+      @keyframes sp-toast-in-out {
+        0% { opacity:0; transform:translate(-50%, -10px); }
+        15% { opacity:1; transform:translate(-50%, 0); }
+        85% { opacity:1; transform:translate(-50%, 0); }
+        100% { opacity:0; transform:translate(-50%, -10px); }
+      }
       .sp-navmenu-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
       .sp-navmenu-title { font-family:'Kanit'; font-weight:700; font-size:1.1rem; }
       .sp-navmenu-user { font-size:0.78rem; color:var(--muted); margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--line); }
@@ -3008,7 +3129,7 @@ function GlobalStyle() {
       .sp-navmenu-item-label { font-weight:600; font-size:0.9rem; }
       .sp-navmenu-item-desc { font-size:0.75rem; color:var(--muted); margin-top:2px; line-height:1.3; }
 
-      .sp-main { flex:1; padding:32px 40px; overflow-y:auto; }
+      .sp-main { flex:1; padding:32px 40px; overflow-y:auto; overflow-x:hidden; }
 
       .sp-login-wrap { flex:1; display:flex; align-items:center; justify-content:center; min-height:100vh; width:100%; background: radial-gradient(circle at top left, #E8ECF7, var(--bg)); }
       .sp-login-card { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:36px; width:380px; max-width:90vw; }
@@ -3021,6 +3142,15 @@ function GlobalStyle() {
       .sp-role-toggle button.active { background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,0.08); font-weight:600; }
       .sp-login-submit { width:100%; margin-top:8px; }
       .sp-error { display:flex; align-items:center; gap:6px; color:var(--accent2); font-size:0.8rem; margin:4px 0 10px; }
+      .sp-grade-report-img { max-width:100%; border-radius:8px; border:1px solid var(--line); display:block; }
+      .sp-grade-report-preview { display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
+      .sp-grade-report-actions { display:flex; gap:8px; align-items:center; }
+      .sp-password-field { position:relative; }
+      .sp-password-field .sp-input { padding-right:38px; }
+      .sp-password-toggle { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; padding:4px; display:flex; }
+      .sp-password-toggle:hover { color:var(--accent); }
+      .sp-pw-reveal { display:inline-flex; align-items:center; gap:6px; background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-family:'IBM Plex Mono', monospace; font-size:0.78rem; color:var(--ink); cursor:pointer; }
+      .sp-pw-reveal:hover { border-color:var(--accent); color:var(--accent); }
 
       .sp-label { display:block; font-size:0.75rem; color:var(--muted); margin:12px 0 4px; font-weight:500; }
       .sp-input, .sp-select { width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:6px; background:var(--bg); font-family:'Sarabun'; font-size:0.9rem; color:var(--ink); }
@@ -3032,7 +3162,7 @@ function GlobalStyle() {
       .sp-icon-btn { background:transparent; border:none; color:var(--muted); cursor:pointer; padding:6px; border-radius:4px; }
       .sp-icon-btn:hover { background:var(--bg); color:var(--accent2); }
 
-      .sp-card { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; margin-bottom:20px; }
+      .sp-card { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; margin-bottom:20px; overflow-x:auto; }
       .sp-card-title { font-weight:600; margin-bottom:14px; font-size:0.95rem; }
       .sp-page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
       .sp-page-head h1 { margin:0; }
@@ -3190,6 +3320,13 @@ function GlobalStyle() {
       .sp-drag-handle { color:var(--muted); display:flex; align-items:center; cursor:grab; }
       .sp-drag-handle:hover { color:var(--accent); }
 
+      .sp-comment-box { display:flex; gap:6px; align-items:center; margin-top:8px; width:100%; }
+      .sp-comment-input { font-size:0.78rem; }
+      .sp-comment-saved { font-size:0.72rem; margin-top:4px; }
+      .sp-teacher-submission-row { align-items:flex-start; flex-wrap:wrap; }
+      .sp-submission-right { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+      .sp-student-comment { display:flex; align-items:flex-start; gap:6px; font-size:0.76rem; color:var(--muted); background:var(--bg); border-radius:6px; padding:6px 10px; max-width:320px; text-align:left; }
+
       @media (max-width: 860px) {
         .sp-app { flex-direction:column; }
         .sp-main { padding:16px; padding-top:72px; width:100%; }
@@ -3228,6 +3365,7 @@ export default function App() {
   const [view, setView] = useState("dashboard");
   const [theme, setThemeState] = useState("light");
   const [backendError, setBackendError] = useState("");
+  const [refreshToast, setRefreshToast] = useState(false);
 
   useEffect(() => {
     load();
@@ -3328,8 +3466,8 @@ export default function App() {
 
   async function persist(next) {
     setData(next);
-    try { await sbSaveState(next); setBackendError(""); }
-    catch (e) { console.error("Supabase save failed", e); setBackendError(e.message || String(e)); }
+    try { await sbSaveState(next); setBackendError(""); return true; }
+    catch (e) { console.error("Supabase save failed", e); setBackendError(e.message || String(e)); return false; }
   }
 
   function handleLogin(user) {
@@ -3358,7 +3496,7 @@ export default function App() {
     setView("dashboard");
   }
 
-  function handleRegister({ name, studentCode, className, username, email, password }) {
+  async function handleRegister({ name, studentCode, className, username, email, password }) {
     const usernameNorm = username.trim().toLowerCase();
     const emailNorm = email.trim().toLowerCase();
     const taken = data.users.some((u) =>
@@ -3379,7 +3517,10 @@ export default function App() {
     const newStudent = { id, name, class: className, number, studentCode: studentCode.trim() };
     const newUser = { username: usernameNorm, password, role: "student", studentId: id, email: emailNorm };
     const next = { ...data, students: [...data.students, newStudent], users: [...data.users, newUser] };
-    persist(next);
+    const ok = await persist(next);
+    if (!ok) {
+      return { error: "บันทึกข้อมูลไม่สำเร็จ (เชื่อมต่อฐานข้อมูลไม่ได้) กรุณาลองใหม่อีกครั้ง — ถ้ายังไม่ได้ ลองเช็คอินเทอร์เน็ตแล้วรีเฟรชหน้านี้" };
+    }
     setSession(newUser);
     setView("dashboard");
     return { error: null };
@@ -3425,7 +3566,16 @@ export default function App() {
           siteContent={data.siteContent}
           isAdminAccount={isAdminAccount}
           onSwitchViewMode={switchViewMode}
+          onRefresh={() => {
+            load();
+            setView("dashboard");
+            setRefreshToast(true);
+            setTimeout(() => setRefreshToast(false), 1600);
+          }}
         />
+        {refreshToast && (
+          <div className="sp-refresh-toast"><Check size={16} /> รีเฟรชข้อมูลแล้ว</div>
+        )}
         <main className="sp-main">
           {backendError && (
             <div className="sp-admin-return-bar sp-backend-error-bar">
