@@ -3,7 +3,7 @@ import {
   Calendar, ClipboardList, BookOpen, User, LogOut,
   Users, CheckSquare, Megaphone, Plus, Trash2, AlertCircle, Home,
   Table, X, Sun, Moon, FileText, HelpCircle, Send, MessageSquare,
-  Award, Inbox, TrendingUp, Check, XCircle, Paperclip, Shield, Camera, ArrowLeft, GripVertical, Menu, Info, CalendarClock, MessageCircleWarning, Eye, EyeOff, RefreshCw,
+  Award, Inbox, TrendingUp, Check, XCircle, Paperclip, Shield, Camera, ArrowLeft, GripVertical, Menu, Info, CalendarClock, MessageCircleWarning, Eye, EyeOff, RefreshCw, Bell,
 } from "lucide-react";
 
 const STORAGE_KEY = "smudphok:data";
@@ -96,6 +96,24 @@ function genId(prefix) {
   return prefix + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
+function withAudit(data, actorUsername, action, entityType, entityId, before, after) {
+  const entry = {
+    id: genId("audit"), actorUsername, action, entityType, entityId,
+    before: before ?? null, after: after ?? null,
+    createdAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+  };
+  return { ...data, auditLog: [...(data.auditLog || []), entry] };
+}
+
+function pushNotification(data, toUsername, type, title, body, relatedType, relatedId) {
+  const notif = {
+    id: genId("notif"), toUsername, type, title, body, isRead: false,
+    createdAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+    relatedType: relatedType || null, relatedId: relatedId || null,
+  };
+  return { ...data, notifications: [...(data.notifications || []), notif] };
+}
+
 
 const BANNED_WORDS = [
   // Thai
@@ -178,6 +196,26 @@ function buildAttendanceSeed() {
 }
 
 const SEED = {
+  academicYears: [
+    { id: "ay1", label: "2569", isCurrent: true },
+  ],
+  terms: [
+    { id: "t1", academicYearId: "ay1", termNumber: 1, isCurrent: true, status: "open" },
+    { id: "t2", academicYearId: "ay1", termNumber: 2, isCurrent: false, status: "open" },
+  ],
+  homeroomAssignments: [
+    { class: "ปวส.2/3", teacherUsername: "kruping" },
+  ],
+  subjectTeacherAssignments: [
+    { id: "sta1", teacherUsername: "kruping", subject: "วิเคราะห์และออกแบบระบบเชิงวัตถุ", class: "ปวส.2/3", termId: "t1" },
+    { id: "sta2", teacherUsername: "kruping", subject: "การเป็นผู้ประกอบการ", class: "ปวส.2/3", termId: "t1" },
+    { id: "sta3", teacherUsername: "kruping", subject: "เทคนิคการนำเสนอ", class: "ปวช.1/1", termId: "t1" },
+  ],
+  reportCards: [],
+  gradeUnlockRequests: [],
+  auditLog: [],
+  notifications: [],
+  notificationPrefs: {},
   users: [
     { username: "admin", password: "1234", role: "admin", name: "ผู้ดูแลระบบ", email: "admin@btad.ac.th" },
     { username: "kruping", password: "1234", role: "teacher", name: "ครูปิง สอนดี", email: "kruping@btad.ac.th" },
@@ -197,26 +235,26 @@ const SEED = {
     { id: "s6", name: "สุชาดา แก้วศรี", class: "ปวส.2/3", number: 6, studentCode: "6621230006" },
   ],
   grades: [
-    { id: "g1", studentId: "s1", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 78 },
-    { id: "g2", studentId: "s1", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 85 },
-    { id: "g3", studentId: "s1", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 72 },
-    { id: "g4", studentId: "s1", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 90 },
-    { id: "g5", studentId: "s1", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 88 },
-    { id: "g6", studentId: "s2", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 92 },
-    { id: "g7", studentId: "s2", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 80 },
-    { id: "g8", studentId: "s2", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 88 },
-    { id: "g9", studentId: "s2", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 76 },
-    { id: "g10", studentId: "s2", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 82 },
-    { id: "g11", studentId: "s3", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 65 },
-    { id: "g12", studentId: "s3", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 70 },
-    { id: "g13", studentId: "s3", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 60 },
-    { id: "g14", studentId: "s3", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 75 },
-    { id: "g15", studentId: "s3", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 68 },
-    { id: "g16", studentId: "s4", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 95 },
-    { id: "g17", studentId: "s4", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 91 },
-    { id: "g18", studentId: "s4", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 89 },
-    { id: "g19", studentId: "s4", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 93 },
-    { id: "g20", studentId: "s4", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 90 },
+    { id: "g1", studentId: "s1", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 78, termId: "t1" },
+    { id: "g2", studentId: "s1", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 85, termId: "t1" },
+    { id: "g3", studentId: "s1", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 72, termId: "t1" },
+    { id: "g4", studentId: "s1", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 90, termId: "t1" },
+    { id: "g5", studentId: "s1", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 88, termId: "t1" },
+    { id: "g6", studentId: "s2", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 92, termId: "t1" },
+    { id: "g7", studentId: "s2", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 80, termId: "t1" },
+    { id: "g8", studentId: "s2", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 88, termId: "t1" },
+    { id: "g9", studentId: "s2", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 76, termId: "t1" },
+    { id: "g10", studentId: "s2", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 82, termId: "t1" },
+    { id: "g11", studentId: "s3", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 65, termId: "t1" },
+    { id: "g12", studentId: "s3", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 70, termId: "t1" },
+    { id: "g13", studentId: "s3", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 60, termId: "t1" },
+    { id: "g14", studentId: "s3", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 75, termId: "t1" },
+    { id: "g15", studentId: "s3", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 68, termId: "t1" },
+    { id: "g16", studentId: "s4", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 95, termId: "t1" },
+    { id: "g17", studentId: "s4", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 91, termId: "t1" },
+    { id: "g18", studentId: "s4", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 89, termId: "t1" },
+    { id: "g19", studentId: "s4", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 93, termId: "t1" },
+    { id: "g20", studentId: "s4", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 90, termId: "t1" },
   ],
   attendance: buildAttendanceSeed(),
   assignments: [
@@ -1012,7 +1050,7 @@ function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteCon
     { id: "analytics", label: "รายงานภาพรวม", desc: "สรุปคะแนนและการมาเรียนแต่ละห้อง", icon: TrendingUp },
     { id: "students", label: "จัดการนักเรียน", desc: "เพิ่ม/ลบ/ดูโปรไฟล์นักเรียน", icon: Users },
     { id: "attendance", label: "เช็คชื่อ", desc: "บันทึกการมาเรียนแยกรายห้อง", icon: CheckSquare },
-    { id: "grades", label: "กรอกเกรด", desc: "บันทึกคะแนนแต่ละวิชา", icon: BookOpen },
+    { id: "grades", label: "จัดการเกรด", desc: "กรอกคะแนน + อัปโหลดใบเกรดรวม (ล็อกตามเทอม)", icon: BookOpen },
     { id: "assignments", label: "งาน/การบ้าน", desc: "สร้างงาน ตรวจ และให้คะแนน", icon: ClipboardList },
     { id: "materials", label: "สื่อการสอน", desc: "อัปโหลดเอกสารและสื่อการสอน", icon: FileText },
     { id: "quizzes", label: "คลังข้อสอบ", desc: "สร้างแบบทดสอบให้นักเรียนทำ", icon: HelpCircle },
@@ -1030,6 +1068,7 @@ function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteCon
     { id: "staff", label: "จัดการบัญชีครู/แอดมิน", desc: "เพิ่ม/ลบบัญชี ตั้งรหัสผ่านใหม่", icon: Shield },
     { id: "classes", label: "จัดการห้องเรียน", desc: "เพิ่ม/ลบรายชื่อห้องเรียน", icon: Table },
     { id: "sitecontent", label: "แก้ไขข้อความเว็บไซต์", desc: "แก้ชื่อสถาบันและข้อความหน้าเว็บ", icon: FileText },
+    { id: "auditlog", label: "Audit Log", desc: "ประวัติการแก้ไขข้อมูลทั้งหมดในระบบ", icon: Shield },
   ];
   const nav = role === "admin" ? adminNav : role === "teacher" ? teacherNav : studentNav;
 
@@ -1608,28 +1647,41 @@ function StudentLeave({ data, student, persist }) {
 }
 
 function StudentMessages({ data, student, persist }) {
-  const teachers = data.users.filter((u) => u.role === "teacher");
-  const [teacherUsername, setTeacherUsername] = useState(teachers[0]?.username || "");
+  const currentTermId = data.terms.find((t) => t.isCurrent)?.id;
+  const subjectTeacherOptions = [...new Map(
+    data.subjectTeacherAssignments
+      .filter((a) => a.class === student.class && a.termId === currentTermId)
+      .map((a) => [a.teacherUsername + "_" + a.subject, a])
+  ).values()];
+  const homeroom = (data.homeroomAssignments || []).find((h) => h.class === student.class);
+
+  const [chatType, setChatType] = useState("subject");
+  const [selectedKey, setSelectedKey] = useState(subjectTeacherOptions[0] ? subjectTeacherOptions[0].teacherUsername + "_" + subjectTeacherOptions[0].subject : "");
   const [body, setBody] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editBody, setEditBody] = useState("");
   const [chatError, setChatError] = useState("");
   const threadEndRef = useRef(null);
 
+  const activeSubjectOption = subjectTeacherOptions.find((a) => a.teacherUsername + "_" + a.subject === selectedKey);
+  const teacherUsername = chatType === "classroom" ? homeroom?.teacherUsername : activeSubjectOption?.teacherUsername;
+  const subjectFilter = chatType === "classroom" ? null : activeSubjectOption?.subject;
+
   const thread = (data.messages || [])
-    .filter((m) => m.studentId === student.id && m.teacherUsername === teacherUsername)
+    .filter((m) => m.studentId === student.id && m.teacherUsername === teacherUsername && (m.type || "subject") === chatType && (chatType === "classroom" || m.subject === subjectFilter))
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: "end" });
-  }, [thread.length, teacherUsername]);
+  }, [thread.length, teacherUsername, chatType, subjectFilter]);
 
   function send() {
     if (!body.trim() || !teacherUsername) return;
     if (containsProfanity(body)) { setChatError("ข้อความมีคำไม่สุภาพ กรุณาแก้ไขก่อนส่งครับ"); return; }
     setChatError("");
-    const msg = { id: genId("msg"), studentId: student.id, teacherUsername, sender: "student", body: body.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false };
-    persist({ ...data, messages: [...(data.messages || []), msg] });
+    const msg = { id: genId("msg"), studentId: student.id, teacherUsername, sender: "student", body: body.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false, type: chatType, subject: subjectFilter };
+    const next = pushNotification({ ...data, messages: [...(data.messages || []), msg] }, teacherUsername, "chat_message", "ข้อความใหม่จาก " + student.name, body.trim().slice(0, 80), "chat", student.id);
+    persist(next);
     setBody("");
   }
 
@@ -1649,46 +1701,71 @@ function StudentMessages({ data, student, persist }) {
     <div>
       <h1>กล่องข้อความ / ติดต่อครู</h1>
       <div className="sp-card">
-        <label className="sp-label">เลือกครูที่ต้องการติดต่อ</label>
-        <select className="sp-select" value={teacherUsername} onChange={(e) => setTeacherUsername(e.target.value)}>
-          {teachers.length === 0 && <option value="">- ไม่มีบัญชีครู -</option>}
-          {teachers.map((t) => <option key={t.username} value={t.username}>{t.name}</option>)}
-        </select>
-      </div>
-      <div className="sp-card sp-message-thread">
-        {thread.length === 0 && <div className="sp-empty">ยังไม่มีข้อความกับครูท่านนี้ ลองส่งคำถามได้เลย</div>}
-        {thread.map((m) => (
-          <div key={m.id} className={"sp-msg-bubble" + (m.sender === "student" ? " me" : "")}>
-            <div className="sp-msg-sender">{m.sender === "student" ? "ฉัน" : "ครู"}</div>
-            {editingId === m.id ? (
-              <div className="sp-inline-form">
-                <input className="sp-input" value={editBody} onChange={(e) => setEditBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(m.id); }} />
-                <button className="sp-icon-btn" onClick={() => saveEdit(m.id)}><Check size={14} /></button>
-                <button className="sp-icon-btn" onClick={() => setEditingId(null)}><X size={14} /></button>
-              </div>
-            ) : (
-              <div>{m.body}</div>
-            )}
-            <div className="sp-msg-time">
-              {m.date}{m.edited ? " · แก้ไขแล้ว" : ""}
-              {m.sender === "student" && editingId !== m.id && (
-                <>
-                  <button className="sp-msg-edit-btn" onClick={() => { setEditingId(m.id); setEditBody(m.body); }}>แก้ไข</button>
-                  <button className="sp-msg-edit-btn" onClick={() => deleteMessage(m.id)}>ลบ</button>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
-        <div ref={threadEndRef} />
-      </div>
-      <div className="sp-card">
-        <div className="sp-inline-form">
-          <input className="sp-input" placeholder="พิมพ์ข้อความถึงครู..." value={body} onChange={(e) => { setBody(e.target.value); if (chatError) setChatError(""); }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
-          <button className="sp-btn-primary" type="button" onClick={send}><Send size={16} /> ส่ง</button>
+        <div className="sp-gm-tabs">
+          <button className={"sp-gm-tab" + (chatType === "subject" ? " active" : "")} onClick={() => setChatType("subject")}>แชทวิชาเรียน</button>
+          <button className={"sp-gm-tab" + (chatType === "classroom" ? " active" : "")} onClick={() => setChatType("classroom")}>แชทห้องเรียน</button>
         </div>
-        {chatError && <div className="sp-error"><AlertCircle size={16} /> {chatError}</div>}
+        {chatType === "subject" ? (
+          subjectTeacherOptions.length === 0 ? (
+            <div className="sp-empty">ยังไม่มีครูผู้สอนที่มอบหมายให้ห้องของคุณในเทอมนี้</div>
+          ) : (
+            <>
+              <label className="sp-label">เลือกวิชา/ครูที่ต้องการติดต่อ</label>
+              <select className="sp-select" value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)}>
+                {subjectTeacherOptions.map((a) => {
+                  const t = data.users.find((u) => u.username === a.teacherUsername);
+                  const key = a.teacherUsername + "_" + a.subject;
+                  return <option key={key} value={key}>{a.subject} · {t?.name || a.teacherUsername}</option>;
+                })}
+              </select>
+            </>
+          )
+        ) : (
+          !homeroom ? (
+            <div className="sp-empty">ห้องของคุณยังไม่มีครูประจำชั้น</div>
+          ) : (
+            <div className="sp-list-desc">ครูประจำชั้น: {data.users.find((u) => u.username === homeroom.teacherUsername)?.name || homeroom.teacherUsername}</div>
+          )
+        )}
       </div>
+      {teacherUsername && (
+        <>
+          <div className="sp-card sp-message-thread">
+            {thread.length === 0 && <div className="sp-empty">ยังไม่มีข้อความ ลองส่งคำถามได้เลย</div>}
+            {thread.map((m) => (
+              <div key={m.id} className={"sp-msg-bubble" + (m.sender === "student" ? " me" : "")}>
+                <div className="sp-msg-sender">{m.sender === "student" ? "ฉัน" : "ครู"}</div>
+                {editingId === m.id ? (
+                  <div className="sp-inline-form">
+                    <input className="sp-input" value={editBody} onChange={(e) => setEditBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(m.id); }} />
+                    <button className="sp-icon-btn" onClick={() => saveEdit(m.id)}><Check size={14} /></button>
+                    <button className="sp-icon-btn" onClick={() => setEditingId(null)}><X size={14} /></button>
+                  </div>
+                ) : (
+                  <div>{m.body}</div>
+                )}
+                <div className="sp-msg-time">
+                  {m.date}{m.edited ? " · แก้ไขแล้ว" : ""}
+                  {m.sender === "student" && editingId !== m.id && (
+                    <>
+                      <button className="sp-msg-edit-btn" onClick={() => { setEditingId(m.id); setEditBody(m.body); }}>แก้ไข</button>
+                      <button className="sp-msg-edit-btn" onClick={() => deleteMessage(m.id)}>ลบ</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div ref={threadEndRef} />
+          </div>
+          <div className="sp-card">
+            <div className="sp-inline-form">
+              <input className="sp-input" placeholder="พิมพ์ข้อความถึงครู..." value={body} onChange={(e) => { setBody(e.target.value); if (chatError) setChatError(""); }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+              <button className="sp-btn-primary" type="button" onClick={send}><Send size={16} /> ส่ง</button>
+            </div>
+            {chatError && <div className="sp-error"><AlertCircle size={16} /> {chatError}</div>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -1802,8 +1879,30 @@ function TeacherStaffAccounts({ data, persist, session }) {
   const [resetTarget, setResetTarget] = useState(null);
   const [resetPw, setResetPw] = useState("");
   const [visiblePw, setVisiblePw] = useState({});
+  const [addingAssignmentFor, setAddingAssignmentFor] = useState(null);
+  const [newSubject, setNewSubject] = useState("");
+  const [newClass, setNewClass] = useState((data.classes && data.classes[0]) || "");
 
   const staff = data.users.filter((u) => u.role === "teacher" || u.role === "admin");
+  const currentTermId = data.terms.find((t) => t.isCurrent)?.id || data.terms[0]?.id;
+
+  function setHomeroom(teacherUsername, className) {
+    const others = (data.homeroomAssignments || []).filter((h) => h.teacherUsername !== teacherUsername);
+    const next = className ? [...others, { class: className, teacherUsername }] : others;
+    persist({ ...data, homeroomAssignments: next });
+  }
+
+  function addSubjectAssignment(teacherUsername) {
+    if (!newSubject.trim() || !newClass) return;
+    const assignment = { id: genId("sta"), teacherUsername, subject: newSubject.trim(), class: newClass, termId: currentTermId };
+    persist({ ...data, subjectTeacherAssignments: [...data.subjectTeacherAssignments, assignment] });
+    setNewSubject("");
+    setAddingAssignmentFor(null);
+  }
+
+  function removeSubjectAssignment(id) {
+    persist({ ...data, subjectTeacherAssignments: data.subjectTeacherAssignments.filter((a) => a.id !== id) });
+  }
 
   function addStaff() {
     setError(""); setSuccess("");
@@ -1900,6 +1999,51 @@ function TeacherStaffAccounts({ data, persist, session }) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="sp-card">
+        <div className="sp-card-title">สิทธิ์การสอน (ครูประจำชั้น / วิชาที่สอน)</div>
+        <div className="sp-perm-table">
+          <div className="sp-perm-row sp-perm-head">
+            <div>ชื่อครู</div><div>ครูประจำชั้น</div><div>วิชา/ห้องที่สอน</div><div></div>
+          </div>
+          {data.users.filter((u) => u.role === "teacher").map((t) => {
+            const homeroom = (data.homeroomAssignments || []).find((h) => h.teacherUsername === t.username);
+            const assignments = data.subjectTeacherAssignments.filter((a) => a.teacherUsername === t.username && a.termId === currentTermId);
+            return (
+              <div className="sp-perm-row" key={t.username}>
+                <div>{t.name}</div>
+                <div>
+                  <select className="sp-select" value={homeroom?.class || ""} onChange={(e) => setHomeroom(t.username, e.target.value)}>
+                    <option value="">— ไม่ได้เป็นครูประจำชั้น —</option>
+                    {(data.classes || []).map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="sp-perm-chips">
+                  {assignments.map((a) => (
+                    <span key={a.id} className="sp-chip">
+                      {a.subject} · {a.class}
+                      <button type="button" onClick={() => removeSubjectAssignment(a.id)}><X size={12} /></button>
+                    </span>
+                  ))}
+                  {addingAssignmentFor === t.username ? (
+                    <div className="sp-inline-form" style={{ marginTop: "6px" }}>
+                      <input className="sp-input" placeholder="ชื่อวิชา" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} />
+                      <select className="sp-select" value={newClass} onChange={(e) => setNewClass(e.target.value)}>
+                        {(data.classes || []).map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <button className="sp-btn-primary" type="button" onClick={() => addSubjectAssignment(t.username)}>เพิ่ม</button>
+                      <button className="sp-link-btn" type="button" onClick={() => setAddingAssignmentFor(null)}>ยกเลิก</button>
+                    </div>
+                  ) : (
+                    <button className="sp-chip sp-chip-add" type="button" onClick={() => setAddingAssignmentFor(t.username)}>+ เพิ่มวิชา/ห้อง</button>
+                  )}
+                </div>
+                <div />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -2250,6 +2394,193 @@ function TeacherAttendance({ data, persist }) {
   );
 }
 
+function TeacherGradeManagement({ data, persist, session }) {
+  const [yearId, setYearId] = useState(data.academicYears.find((y) => y.isCurrent)?.id || data.academicYears[0]?.id);
+  const [termId, setTermId] = useState(data.terms.find((t) => t.isCurrent)?.id || data.terms[0]?.id);
+  const [tab, setTab] = useState("scores");
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [scoreInputs, setScoreInputs] = useState({});
+  const [reqReason, setReqReason] = useState("");
+  const [reqSent, setReqSent] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const [uploadError, setUploadError] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  const myAssignments = data.subjectTeacherAssignments.filter((a) => a.teacherUsername === session.username && a.termId === termId);
+  const activeAssignment = selectedAssignment ? myAssignments.find((a) => a.id === selectedAssignment) : myAssignments[0];
+  const term = data.terms.find((t) => t.id === termId);
+  const isLocked = term?.status === "closed";
+
+  const myHomeroom = (data.homeroomAssignments || []).find((h) => h.teacherUsername === session.username);
+
+  const classStudents = activeAssignment ? data.students.filter((s) => s.class === activeAssignment.class) : [];
+  const homeroomStudents = myHomeroom ? data.students.filter((s) => s.class === myHomeroom.class) : [];
+
+  function scoreKey(studentId) { return `${studentId}_${activeAssignment?.subject}_${termId}`; }
+
+  function getGrade(studentId) {
+    return data.grades.find((g) => g.studentId === studentId && g.subject === activeAssignment?.subject && g.termId === termId);
+  }
+
+  function saveScores() {
+    let next = { ...data };
+    Object.entries(scoreInputs).forEach(([key, val]) => {
+      const [studentId] = key.split("_");
+      if (!key.startsWith(studentId) || val === "" || val === undefined) return;
+      const existing = next.grades.find((g) => g.studentId === studentId && g.subject === activeAssignment.subject && g.termId === termId);
+      const score = Number(val);
+      if (isNaN(score)) return;
+      const beforeScore = existing ? existing.score : null;
+      if (existing) {
+        next = { ...next, grades: next.grades.map((g) => (g === existing ? { ...g, score } : g)) };
+      } else {
+        next = { ...next, grades: [...next.grades, { id: genId("g"), studentId, subject: activeAssignment.subject, term: `เทอม ${term.termNumber}/${data.academicYears.find((y) => y.id === yearId)?.label}`, termId, score }] };
+      }
+      next = withAudit(next, session.username, "score.update", "grade", studentId, { score: beforeScore, subject: activeAssignment.subject }, { score, subject: activeAssignment.subject });
+    });
+    persist(next);
+    setScoreInputs({});
+  }
+
+  function submitUnlockRequest() {
+    const req = {
+      id: genId("req"), teacherUsername: session.username, subject: activeAssignment.subject, class: activeAssignment.class,
+      termId, studentId: null, reason: reqReason || "ขอแก้ไขคะแนนหลังปิดเทอม", status: "pending", requestedAt: new Date().toISOString().slice(0, 16).replace("T", " "),
+    };
+    persist({ ...data, gradeUnlockRequests: [...(data.gradeUnlockRequests || []), req] });
+    setReqReason("");
+    setReqSent(true);
+    setTimeout(() => setReqSent(false), 2500);
+  }
+
+  async function handleReportCardUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file || !selectedStudentId) return;
+    if (!/^(image\/|application\/pdf)/.test(file.type)) { setUploadError("รองรับเฉพาะไฟล์ PDF, JPG, PNG เท่านั้น"); return; }
+    if (file.size > 5 * 1024 * 1024) { setUploadError("ไฟล์ใหญ่เกินไป (จำกัดไม่เกิน 5MB)"); return; }
+    setUploadError("");
+    setUploading(true);
+    try {
+      const uploaded = await sbUploadFile(file);
+      const existing = (data.reportCards || []).find((r) => r.studentId === selectedStudentId && r.termId === termId);
+      const record = { studentId: selectedStudentId, termId, fileUrl: uploaded.fileUrl, fileType: file.type, fileSize: file.size, uploadedBy: session.username, uploadedAt: new Date().toISOString().slice(0, 16).replace("T", " ") };
+      const nextReportCards = existing
+        ? data.reportCards.map((r) => (r === existing ? { ...r, ...record } : r))
+        : [...(data.reportCards || []), { id: genId("rc"), ...record }];
+      const withLog = withAudit({ ...data, reportCards: nextReportCards }, session.username, "report_card.upload", "report_card", selectedStudentId, existing ? { fileUrl: existing.fileUrl } : null, { fileUrl: uploaded.fileUrl });
+      await persist(withLog);
+    } catch (err) {
+      setUploadError(err.message || "อัปโหลดไม่สำเร็จ");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const selectedReportCard = selectedStudentId ? (data.reportCards || []).find((r) => r.studentId === selectedStudentId && r.termId === termId) : null;
+
+  return (
+    <div>
+      <h1>จัดการเกรด</h1>
+      <div className="sp-card">
+        <div className="sp-gm-header">
+          <select className="sp-select" value={yearId} onChange={(e) => setYearId(e.target.value)}>
+            {data.academicYears.map((y) => <option key={y.id} value={y.id}>ปีการศึกษา {y.label}</option>)}
+          </select>
+          <select className="sp-select" value={termId} onChange={(e) => { setTermId(e.target.value); setSelectedAssignment(null); }}>
+            {data.terms.filter((t) => t.academicYearId === yearId).map((t) => <option key={t.id} value={t.id}>เทอม {t.termNumber}</option>)}
+          </select>
+          {tab === "scores" && myAssignments.length > 0 && (
+            <select className="sp-select" value={activeAssignment?.id || ""} onChange={(e) => setSelectedAssignment(e.target.value)}>
+              {myAssignments.map((a) => <option key={a.id} value={a.id}>{a.subject} · {a.class}</option>)}
+            </select>
+          )}
+          <span className={"sp-lock-badge" + (isLocked ? " locked" : " open")}>{isLocked ? "ปิดเทอม — ล็อกการแก้ไข" : "เปิดให้กรอก"}</span>
+        </div>
+      </div>
+
+      <div className="sp-card">
+        <div className="sp-gm-tabs">
+          <button className={"sp-gm-tab" + (tab === "scores" ? " active" : "")} onClick={() => setTab("scores")}>กรอกคะแนนรายวิชา</button>
+          <button className={"sp-gm-tab" + (tab === "reportcard" ? " active" : "")} onClick={() => setTab("reportcard")}>อัปโหลดใบเกรดรวม</button>
+        </div>
+
+        {tab === "scores" && (
+          myAssignments.length === 0 ? (
+            <div className="sp-empty">คุณยังไม่ได้รับมอบหมายให้สอนวิชาใดในเทอมนี้</div>
+          ) : (
+            <div>
+              <table className="sp-table">
+                <thead><tr><th>นักเรียน</th><th>คะแนน (เต็ม 100)</th><th>เกรด</th></tr></thead>
+                <tbody>
+                  {classStudents.map((s) => {
+                    const g = getGrade(s.id);
+                    const key = scoreKey(s.id);
+                    const val = scoreInputs[key] !== undefined ? scoreInputs[key] : (g ? g.score : "");
+                    return (
+                      <tr key={s.id}>
+                        <td>{s.name}</td>
+                        <td><input className="sp-input sp-grade-input" type="number" min="0" max="100" disabled={isLocked} value={val} onChange={(e) => setScoreInputs((prev) => ({ ...prev, [key]: e.target.value }))} /></td>
+                        <td>{g ? scoreToPoint(g.score).toFixed(1) : "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {!isLocked ? (
+                <button className="sp-btn-primary" style={{ marginTop: "14px" }} type="button" onClick={saveScores}>บันทึกคะแนน</button>
+              ) : (
+                <div style={{ marginTop: "14px" }}>
+                  <div className="sp-inline-form">
+                    <input className="sp-input" placeholder="เหตุผลที่ขอแก้ไข (ไม่บังคับ)" value={reqReason} onChange={(e) => setReqReason(e.target.value)} />
+                    <button className="sp-btn-primary sp-btn-danger" type="button" onClick={submitUnlockRequest}>ยื่นคำร้องขอแก้ไขเกรดต่อ Admin</button>
+                  </div>
+                  {reqSent && <div className="sp-success">ส่งคำร้องแล้ว รอแอดมินอนุมัติ</div>}
+                </div>
+              )}
+            </div>
+          )
+        )}
+
+        {tab === "reportcard" && (
+          !myHomeroom ? (
+            <div className="sp-empty">คุณไม่ได้เป็นครูประจำชั้นของห้องใด จึงไม่มีสิทธิ์อัปโหลดใบเกรดรวม</div>
+          ) : (
+            <div className="sp-gm-upload-panel">
+              <div>
+                <label className="sp-label">เลือกนักเรียน (ห้อง {myHomeroom.class})</label>
+                <select className="sp-select" value={selectedStudentId || ""} onChange={(e) => { setSelectedStudentId(e.target.value); setUploadError(""); }}>
+                  <option value="">- เลือกนักเรียน -</option>
+                  {homeroomStudents.map((s) => <option key={s.id} value={s.id}>{s.name} (เลขที่ {s.number})</option>)}
+                </select>
+                {selectedStudentId && (
+                  <label className="sp-upload-btn" style={{ marginTop: "12px" }}>
+                    <Paperclip size={14} /> {uploading ? "กำลังอัปโหลด..." : selectedReportCard ? "เปลี่ยนไฟล์ใบเกรด" : "อัปโหลดไฟล์ใบเกรด"}
+                    <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={uploading} onChange={handleReportCardUpload} />
+                  </label>
+                )}
+                <div className="sp-hint-note">รองรับ PDF / JPG / PNG ไม่เกิน 5MB</div>
+                {uploadError && <div className="sp-error"><AlertCircle size={14} /> {uploadError}</div>}
+              </div>
+              <div className="sp-gm-preview">
+                {!selectedStudentId ? (
+                  <div className="sp-empty">เลือกนักเรียนเพื่อดู/อัปโหลดใบเกรด</div>
+                ) : !selectedReportCard ? (
+                  <div className="sp-empty">ยังไม่มีไฟล์ใบเกรดของนักเรียนคนนี้ในเทอมนี้</div>
+                ) : selectedReportCard.fileType === "application/pdf" ? (
+                  <iframe title="ใบเกรด" src={selectedReportCard.fileUrl} className="sp-gm-preview-frame" />
+                ) : (
+                  <img src={selectedReportCard.fileUrl} alt="ใบเกรด" className="sp-gm-preview-img" />
+                )}
+              </div>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TeacherGrades({ data, persist }) {
   const [studentId, setStudentId] = useState(data.students[0]?.id || "");
   const [subject, setSubject] = useState("");
@@ -2308,7 +2639,14 @@ function TeacherAssignments({ data, persist }) {
 
   function addAssignment() {
     if (!form.title || !form.dueDate) return;
-    persist({ ...data, assignments: [...data.assignments, { id: genId("a"), ...form }] });
+    const newId = genId("a");
+    let next = { ...data, assignments: [...data.assignments, { id: newId, ...form }] };
+    const classStudentsForNotif = data.students.filter((s) => s.class === form.class);
+    classStudentsForNotif.forEach((s) => {
+      const u = data.users.find((u) => u.studentId === s.id);
+      if (u) next = pushNotification(next, u.username, "assignment_new", "มีงานใหม่: " + form.title, `${form.subject} · กำหนดส่ง ${form.dueDate}`, "assignment", newId);
+    });
+    persist(next);
     setForm({ title: "", subject: "", class: classes[0] || "", dueDate: "", description: "" });
   }
   function removeAssignment(id) {
@@ -2442,7 +2780,9 @@ function TeacherAnnouncements({ data, persist }) {
   function addAnnouncement() {
     if (!form.title || !form.body) return;
     const today = new Date().toISOString().slice(0, 10);
-    persist({ ...data, announcements: [...data.announcements, { id: genId("n"), date: today, ...form }] });
+    const newId = genId("n");
+    const next = pushNotification({ ...data, announcements: [...data.announcements, { id: newId, date: today, ...form }] }, "all", "announcement", "ประกาศใหม่: " + form.title, form.body, "announcement", newId);
+    persist(next);
     setForm({ title: "", body: "" });
   }
   function removeAnnouncement(id) {
@@ -2653,23 +2993,33 @@ function TeacherLeaveApproval({ data, persist }) {
 }
 
 function TeacherMessages({ data, persist, session }) {
-  const [openStudentId, setOpenStudentId] = useState(null);
+  const [chatType, setChatType] = useState("subject");
+  const [openThreadKey, setOpenThreadKey] = useState(null);
   const [reply, setReply] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editBody, setEditBody] = useState("");
   const [chatError, setChatError] = useState("");
   const threadEndRef = useRef(null);
 
-  const myMessages = (data.messages || []).filter((m) => m.teacherUsername === session.username);
-  const studentIdsWithMsgs = [...new Set(myMessages.map((m) => m.studentId))];
-  const list = data.students.filter((s) => studentIdsWithMsgs.includes(s.id));
+  const myMessages = (data.messages || []).filter((m) => m.teacherUsername === session.username && (m.type || "subject") === chatType);
+  const threadKeys = [...new Set(myMessages.map((m) => `${m.studentId}__${m.subject || ""}`))];
+  const threadList = threadKeys.map((key) => {
+    const [studentId, subject] = key.split("__");
+    const s = data.students.find((s) => s.id === studentId);
+    return s ? { key, student: s, subject } : null;
+  }).filter(Boolean);
+
+  const activeThread = threadList.find((t) => t.key === openThreadKey);
 
   function send() {
-    if (!reply.trim() || !openStudentId) return;
+    if (!reply.trim() || !activeThread) return;
     if (containsProfanity(reply)) { setChatError("ข้อความมีคำไม่สุภาพ กรุณาแก้ไขก่อนส่งครับ"); return; }
     setChatError("");
-    const msg = { id: genId("msg"), studentId: openStudentId, teacherUsername: session.username, sender: "teacher", body: reply.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false };
-    persist({ ...data, messages: [...(data.messages || []), msg] });
+    const msg = { id: genId("msg"), studentId: activeThread.student.id, teacherUsername: session.username, sender: "teacher", body: reply.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false, type: chatType, subject: activeThread.subject || null };
+    let next = { ...data, messages: [...(data.messages || []), msg] };
+    const studentUser = data.users.find((u) => u.studentId === activeThread.student.id);
+    if (studentUser) next = pushNotification(next, studentUser.username, "chat_message", "ข้อความใหม่จากครู " + session.name, reply.trim().slice(0, 80), "chat", activeThread.student.id);
+    persist(next);
     setReply("");
   }
 
@@ -2685,27 +3035,34 @@ function TeacherMessages({ data, persist, session }) {
     persist({ ...data, messages: data.messages.filter((m) => m.id !== id) });
   }
 
-  const thread = openStudentId ? myMessages.filter((m) => m.studentId === openStudentId).sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
+  const thread = activeThread ? myMessages.filter((m) => m.studentId === activeThread.student.id && (m.subject || "") === activeThread.subject).sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: "end" });
-  }, [thread.length, openStudentId]);
+  }, [thread.length, openThreadKey]);
 
   return (
     <div>
       <h1>ข้อความจากนักเรียน</h1>
+      <div className="sp-card">
+        <div className="sp-gm-tabs">
+          <button className={"sp-gm-tab" + (chatType === "subject" ? " active" : "")} onClick={() => { setChatType("subject"); setOpenThreadKey(null); }}>แชทวิชาเรียน</button>
+          <button className={"sp-gm-tab" + (chatType === "classroom" ? " active" : "")} onClick={() => { setChatType("classroom"); setOpenThreadKey(null); }}>แชทห้องเรียน</button>
+        </div>
+      </div>
       <div className="sp-two-col">
         <div className="sp-card">
           <div className="sp-card-title">รายชื่อ</div>
-          {list.length === 0 && <div className="sp-empty">ยังไม่มีข้อความเข้ามา</div>}
-          {list.map((s) => (
-            <button key={s.id} className={"sp-nav-item" + (openStudentId === s.id ? " active" : "")} style={{ width: "100%" }} onClick={() => setOpenStudentId(s.id)}>
-              <Avatar name={s.name} avatarDataUrl={s.avatarDataUrl} size={26} /> <span>{s.name}</span>
+          {threadList.length === 0 && <div className="sp-empty">ยังไม่มีข้อความเข้ามาในแท็บนี้</div>}
+          {threadList.map((t) => (
+            <button key={t.key} className={"sp-nav-item" + (openThreadKey === t.key ? " active" : "")} style={{ width: "100%" }} onClick={() => setOpenThreadKey(t.key)}>
+              <Avatar name={t.student.name} avatarDataUrl={t.student.avatarDataUrl} size={26} />
+              <span>{t.student.name}{t.subject ? ` · ${t.subject}` : ""}</span>
             </button>
           ))}
         </div>
         <div className="sp-card">
-          {!openStudentId ? <div className="sp-empty">เลือกนักเรียนทางซ้ายเพื่อดูข้อความ</div> : (
+          {!activeThread ? <div className="sp-empty">เลือกรายชื่อทางซ้ายเพื่อดูข้อความ</div> : (
             <>
               <div className="sp-message-thread">
                 {thread.map((m) => (
@@ -2894,9 +3251,156 @@ function TeacherAnalytics({ data }) {
 }
 
 
-function AdminDashboard({ data }) {
+function playNotificationSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  } catch (e) { /* autoplay blocked or unsupported — ignore */ }
+}
+
+function NotificationBell({ data, persist, session }) {
+  const [open, setOpen] = useState(false);
+  const prevUnreadRef = useRef(null);
+
+  const notifs = (data.notifications || [])
+    .filter((n) => n.toUsername === session.username || n.toUsername === "all")
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const unread = notifs.filter((n) => !n.isRead);
+  const soundEnabled = data.notificationPrefs?.[session.username]?.soundEnabled !== false;
+
+  useEffect(() => {
+    if (prevUnreadRef.current !== null && unread.length > prevUnreadRef.current && soundEnabled) {
+      playNotificationSound();
+    }
+    prevUnreadRef.current = unread.length;
+  }, [unread.length, soundEnabled]);
+
+  function markRead(id) {
+    persist({ ...data, notifications: data.notifications.map((n) => (n.id === id ? { ...n, isRead: true } : n)) });
+  }
+  function markAllRead() {
+    persist({ ...data, notifications: data.notifications.map((n) => (n.toUsername === session.username || n.toUsername === "all") ? { ...n, isRead: true } : n) });
+  }
+  function toggleSound() {
+    persist({ ...data, notificationPrefs: { ...(data.notificationPrefs || {}), [session.username]: { soundEnabled: !soundEnabled } } });
+  }
+
+  return (
+    <div className="sp-bell-wrap">
+      <button className="sp-bell-btn" onClick={() => setOpen((o) => !o)} title="การแจ้งเตือน">
+        <Bell size={20} />
+        {unread.length > 0 && <span className="sp-bell-badge">{unread.length > 9 ? "9+" : unread.length}</span>}
+      </button>
+      {open && (
+        <>
+          <div className="sp-panel-backdrop" onClick={() => setOpen(false)} />
+          <div className="sp-bell-dropdown">
+            <div className="sp-bell-header">
+              <span>การแจ้งเตือน</span>
+              <button className="sp-link-btn" type="button" onClick={toggleSound}>{soundEnabled ? "🔔 เสียงเปิด" : "🔕 เสียงปิด"}</button>
+            </div>
+            <div className="sp-bell-list">
+              {notifs.length === 0 && <div className="sp-empty">ไม่มีการแจ้งเตือน</div>}
+              {notifs.slice(0, 30).map((n) => (
+                <button key={n.id} className={"sp-bell-item" + (n.isRead ? "" : " unread")} type="button" onClick={() => markRead(n.id)}>
+                  <div className="sp-bell-item-title">{n.title}</div>
+                  <div className="sp-bell-item-body">{n.body}</div>
+                  <div className="sp-bell-item-time">{n.createdAt}</div>
+                </button>
+              ))}
+            </div>
+            {unread.length > 0 && <button className="sp-link-btn" type="button" onClick={markAllRead}>ทำเครื่องหมายว่าอ่านแล้วทั้งหมด</button>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function AuditLogViewer({ data }) {
+  const [filterAction, setFilterAction] = useState("all");
+  const entries = (data.auditLog || []).slice().reverse();
+  const actionTypes = [...new Set((data.auditLog || []).map((e) => e.action))];
+  const filtered = filterAction === "all" ? entries : entries.filter((e) => e.action === filterAction);
+
+  function fmtVal(v) {
+    if (v === null || v === undefined) return "-";
+    if (typeof v === "object") return Object.entries(v).map(([k, val]) => `${k}: ${val}`).join(", ");
+    return String(v);
+  }
+
+  return (
+    <div>
+      <h1>Audit Log</h1>
+      <div className="sp-card">
+        <label className="sp-label">กรองตามประเภทการกระทำ</label>
+        <select className="sp-select" value={filterAction} onChange={(e) => setFilterAction(e.target.value)}>
+          <option value="all">ทั้งหมด ({entries.length})</option>
+          {actionTypes.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+      <div className="sp-card">
+        {filtered.length === 0 && <div className="sp-empty">ไม่มีประวัติการแก้ไข</div>}
+        <table className="sp-table">
+          <thead><tr><th>เวลา</th><th>ผู้กระทำ</th><th>การกระทำ</th><th>ก่อนหน้า</th><th>หลังแก้ไข</th></tr></thead>
+          <tbody>
+            {filtered.map((e) => {
+              const actor = data.users.find((u) => u.username === e.actorUsername);
+              return (
+                <tr key={e.id}>
+                  <td style={{ whiteSpace: "nowrap" }}>{e.createdAt}</td>
+                  <td>{actor?.name || e.actorUsername}</td>
+                  <td><span className="sp-tag" style={{ "--tag-color": "var(--accent)" }}>{e.action}</span></td>
+                  <td style={{ fontSize: "0.76rem", color: "var(--muted)" }}>{fmtVal(e.before)}</td>
+                  <td style={{ fontSize: "0.76rem" }}>{fmtVal(e.after)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdminDashboard({ data, persist, session }) {
   const teacherCount = data.users.filter((u) => u.role === "teacher").length;
   const adminCount = data.users.filter((u) => u.role === "admin").length;
+  const currentTerm = data.terms.find((t) => t.isCurrent) || data.terms[0];
+  const pendingRequests = (data.gradeUnlockRequests || []).filter((r) => r.status === "pending");
+
+  function toggleTermLock() {
+    const nextStatus = currentTerm.status === "closed" ? "open" : "closed";
+    const next = withAudit({ ...data, terms: data.terms.map((t) => (t.id === currentTerm.id ? { ...t, status: nextStatus } : t)) }, session?.username || "admin", "term.status_change", "term", currentTerm.id, { status: currentTerm.status }, { status: nextStatus });
+    persist(next);
+  }
+
+  function reviewRequest(id, decision) {
+    const req = data.gradeUnlockRequests.find((r) => r.id === id);
+    let next = {
+      ...data,
+      gradeUnlockRequests: data.gradeUnlockRequests.map((r) => (r.id === id ? { ...r, status: decision, reviewedAt: new Date().toISOString().slice(0, 16).replace("T", " ") } : r)),
+    };
+    if (decision === "approved") {
+      // reopen just that subject+class+term for scoring by marking the term temporarily open
+      // (MVP: reopens the whole term; a finer per-subject override can be layered on later)
+      next.terms = next.terms.map((t) => (t.id === req.termId ? { ...t, status: "open" } : t));
+    }
+    next = withAudit(next, session?.username || "admin", "grade_unlock_request." + decision, "grade_unlock_request", id, { status: "pending" }, { status: decision });
+    persist(next);
+  }
+
   return (
     <div>
       <h1>ภาพรวมระบบ</h1>
@@ -2906,6 +3410,42 @@ function AdminDashboard({ data }) {
         <div className="sp-card sp-stat"><div className="sp-stat-label">บัญชีแอดมิน</div><div className="sp-stat-value">{adminCount}</div></div>
         <div className="sp-card sp-stat"><div className="sp-stat-label">ห้องเรียนทั้งหมด</div><div className="sp-stat-value">{(data.classes || []).length}</div></div>
       </div>
+
+      <div className="sp-card">
+        <div className="sp-card-title">จัดการเทอมปัจจุบัน</div>
+        <div className="sp-inline-form">
+          <span>ปีการศึกษา {data.academicYears.find((y) => y.id === currentTerm.academicYearId)?.label} · เทอม {currentTerm.termNumber}</span>
+          <span className={"sp-lock-badge" + (currentTerm.status === "closed" ? " locked" : " open")}>{currentTerm.status === "closed" ? "ปิดเทอม — ล็อกการแก้ไข" : "เปิดให้กรอก"}</span>
+          <button className="sp-btn-primary" type="button" onClick={toggleTermLock}>
+            {currentTerm.status === "closed" ? "เปิดเทอม (ปลดล็อกทั้งหมด)" : "ปิดเทอม (ล็อกการแก้ไขคะแนน)"}
+          </button>
+        </div>
+      </div>
+
+      <div className="sp-card">
+        <div className="sp-card-title">คำร้องขอแก้ไขเกรด {pendingRequests.length > 0 && <span className="sp-tag" style={{ "--tag-color": "var(--accent2)" }}>{pendingRequests.length} รอดำเนินการ</span>}</div>
+        {(data.gradeUnlockRequests || []).length === 0 && <div className="sp-empty">ยังไม่มีคำร้อง</div>}
+        {(data.gradeUnlockRequests || []).slice().reverse().map((r) => {
+          const teacher = data.users.find((u) => u.username === r.teacherUsername);
+          return (
+            <div key={r.id} className="sp-list-row">
+              <div>
+                <div className="sp-list-title">{teacher?.name || r.teacherUsername} · {r.subject} · {r.class}</div>
+                <div className="sp-list-sub">{r.reason} · ยื่นเมื่อ {r.requestedAt}</div>
+              </div>
+              {r.status === "pending" ? (
+                <div className="sp-inline-form">
+                  <button className="sp-btn-primary" type="button" onClick={() => reviewRequest(r.id, "approved")}>อนุมัติ</button>
+                  <button className="sp-btn-primary sp-btn-danger" type="button" onClick={() => reviewRequest(r.id, "rejected")}>ปฏิเสธ</button>
+                </div>
+              ) : (
+                <span className="sp-tag" style={{ "--tag-color": r.status === "approved" ? "var(--accent)" : "var(--accent2)" }}>{r.status === "approved" ? "อนุมัติแล้ว" : "ปฏิเสธแล้ว"}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       <div className="sp-card">
         <div className="sp-card-title">เมนูลัด</div>
         <div className="sp-list-desc">ใช้เมนูด้านซ้ายเพื่อจัดการนักเรียน บัญชีครู/แอดมิน ห้องเรียน และแก้ไขข้อความบนเว็บไซต์ หรือสลับไปดูมุมมองครู/นักเรียนได้จากด้านบนของเมนู</div>
@@ -3028,7 +3568,8 @@ function AdminViews({ view, data, persist, session, onImpersonateStudent }) {
     case "staff": return <TeacherStaffAccounts data={data} persist={persist} session={session} />;
     case "classes": return <ManageClasses data={data} persist={persist} />;
     case "sitecontent": return <SiteContentEditor data={data} persist={persist} />;
-    default: return <AdminDashboard data={data} />;
+    case "auditlog": return <AuditLogViewer data={data} />;
+    default: return <AdminDashboard data={data} persist={persist} session={session} />;
   }
 }
 
@@ -3036,7 +3577,7 @@ function TeacherViews({ view, data, persist, session }) {
   switch (view) {
     case "students": return <TeacherStudents data={data} persist={persist} canViewPasswords={false} />;
     case "attendance": return <TeacherAttendance data={data} persist={persist} />;
-    case "grades": return <TeacherGrades data={data} persist={persist} />;
+    case "grades": return <TeacherGradeManagement data={data} persist={persist} session={session} />;
     case "assignments": return <TeacherAssignments data={data} persist={persist} />;
     case "materials": return <TeacherMaterials data={data} persist={persist} />;
     case "quizzes": return <TeacherQuizzes data={data} persist={persist} />;
@@ -3145,6 +3686,41 @@ function GlobalStyle() {
       .sp-grade-report-img { max-width:100%; border-radius:8px; border:1px solid var(--line); display:block; }
       .sp-grade-report-preview { display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
       .sp-grade-report-actions { display:flex; gap:8px; align-items:center; }
+      .sp-gm-header { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+      .sp-lock-badge { margin-left:auto; padding:6px 14px; border-radius:20px; font-size:0.78rem; font-weight:600; }
+      .sp-lock-badge.open { background:#DCEFE1; color:#1F7A3E; }
+      .sp-lock-badge.locked { background:#FBE3E0; color:#B43B2F; }
+      .sp-gm-tabs { display:flex; border-bottom:2px solid var(--line); margin-bottom:16px; gap:4px; }
+      .sp-gm-tab { padding:10px 18px; border:none; background:transparent; font-family:'Sarabun'; font-size:0.88rem; font-weight:600; color:var(--muted); cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; }
+      .sp-gm-tab.active { color:var(--ink); border-bottom-color:var(--accent); }
+      .sp-btn-danger { background:var(--accent2); }
+      .sp-gm-upload-panel { display:grid; grid-template-columns:280px 1fr; gap:20px; }
+      .sp-gm-preview { min-height:340px; border:1px solid var(--line); border-radius:8px; display:flex; align-items:center; justify-content:center; padding:12px; background:var(--bg); }
+      .sp-gm-preview-frame { width:100%; height:420px; border:none; border-radius:6px; background:#fff; }
+      .sp-gm-preview-img { max-width:100%; max-height:420px; border-radius:6px; }
+      @media (max-width:700px) { .sp-gm-upload-panel { grid-template-columns:1fr; } }
+      .sp-perm-table { display:flex; flex-direction:column; gap:0; }
+      .sp-perm-row { display:grid; grid-template-columns:1.3fr 1.3fr 2fr 0; gap:12px; padding:12px 4px; border-top:1px solid var(--line); align-items:flex-start; }
+      .sp-perm-row.sp-perm-head { border-top:none; font-size:0.72rem; font-weight:700; text-transform:uppercase; color:var(--muted); padding-bottom:8px; }
+      .sp-perm-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+      .sp-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid var(--line); border-radius:14px; font-size:0.74rem; background:var(--bg); }
+      .sp-chip button { background:none; border:none; cursor:pointer; color:var(--muted); display:flex; padding:0; }
+      .sp-chip button:hover { color:var(--accent2); }
+      .sp-chip-add { border-style:dashed; color:var(--muted); cursor:pointer; background:transparent; }
+      .sp-chip-add:hover { color:var(--accent); border-color:var(--accent); }
+      .sp-bell-wrap { position:fixed; top:14px; right:16px; z-index:41; }
+      .sp-bell-btn { position:relative; z-index:45; width:38px; height:38px; border-radius:50%; border:1px solid var(--line); background:var(--surface); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink); box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+      .sp-bell-btn:hover { border-color:var(--accent); color:var(--accent); }
+      .sp-bell-badge { position:absolute; top:-4px; right:-4px; background:var(--accent2); color:#fff; font-size:0.62rem; font-weight:700; min-width:16px; height:16px; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:0 3px; }
+      .sp-bell-dropdown { position:fixed; top:58px; right:16px; width:320px; max-width:90vw; max-height:70vh; background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,0.18); z-index:41; display:flex; flex-direction:column; padding:12px; animation: sp-fade-in 0.15s ease-out; }
+      .sp-bell-header { display:flex; justify-content:space-between; align-items:center; font-weight:700; font-size:0.9rem; padding-bottom:8px; border-bottom:1px solid var(--line); margin-bottom:6px; }
+      .sp-bell-list { overflow-y:auto; max-height:50vh; display:flex; flex-direction:column; gap:2px; }
+      .sp-bell-item { text-align:left; background:transparent; border:none; border-radius:6px; padding:8px 8px; cursor:pointer; }
+      .sp-bell-item:hover { background:var(--bg); }
+      .sp-bell-item.unread { background:var(--accent2-bg); }
+      .sp-bell-item-title { font-size:0.82rem; font-weight:600; }
+      .sp-bell-item-body { font-size:0.76rem; color:var(--muted); margin-top:2px; }
+      .sp-bell-item-time { font-size:0.68rem; color:var(--muted); margin-top:3px; }
       .sp-password-field { position:relative; }
       .sp-password-field .sp-input { padding-right:38px; }
       .sp-password-toggle { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; padding:4px; display:flex; }
@@ -3379,6 +3955,29 @@ export default function App() {
     return () => clearInterval(interval);
   }, [session]);
 
+  // Homework due-tomorrow reminders (student only). Idempotent: skips assignments
+  // that already have a due-soon notification recorded for this student.
+  useEffect(() => {
+    if (!session || session.role !== "student" || !data) return;
+    const student = data.students.find((s) => s.id === session.studentId);
+    if (!student) return;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+    const dueSoon = data.assignments.filter((a) => a.class === student.class && a.dueDate === tomorrowStr);
+    if (dueSoon.length === 0) return;
+    const existingIds = new Set(
+      (data.notifications || []).filter((n) => n.toUsername === session.username && n.type === "assignment_due_soon").map((n) => n.relatedId)
+    );
+    const missing = dueSoon.filter((a) => !existingIds.has(a.id));
+    if (missing.length === 0) return;
+    let next = data;
+    missing.forEach((a) => {
+      next = pushNotification(next, session.username, "assignment_due_soon", "ใกล้ถึงกำหนดส่ง: " + a.title, `กำหนดส่งพรุ่งนี้ (${a.dueDate})`, "assignment", a.id);
+    });
+    persist(next);
+  }, [session, data && data.assignments]);
+
   function mergeById(loadedArr, seedArr, idKey = "id") {
     const loaded = loadedArr || [];
     const existingIds = new Set(loaded.map((x) => x[idKey]));
@@ -3573,6 +4172,7 @@ export default function App() {
             setTimeout(() => setRefreshToast(false), 1600);
           }}
         />
+        <NotificationBell data={data} persist={persist} session={session} />
         {refreshToast && (
           <div className="sp-refresh-toast"><Check size={16} /> รีเฟรชข้อมูลแล้ว</div>
         )}
