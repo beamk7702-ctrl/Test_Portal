@@ -2240,12 +2240,15 @@ function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate, 
   );
 }
 
-function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords }) {
+function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords, isAdmin }) {
   const [form, setForm] = useState({ name: "", class: (data.classes && data.classes[0]) || "", number: "", studentCode: "", username: "", password: "1234" });
   const [showForm, setShowForm] = useState(false);
   const [viewingId, setViewingId] = useState(null);
   const [classFilter, setClassFilter] = useState("all");
   const [visiblePw, setVisiblePw] = useState({});
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkTargetClass, setBulkTargetClass] = useState((data.classes && data.classes[0]) || "");
+  const [bulkMoveMsg, setBulkMoveMsg] = useState("");
 
   function addStudent() {
     if (!form.name || !form.username) return;
@@ -2265,6 +2268,19 @@ function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords
       grades: data.grades.filter((g) => g.studentId !== id),
       attendance: data.attendance.filter((a) => a.studentId !== id),
     });
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  function bulkMove() {
+    if (selectedIds.length === 0 || !bulkTargetClass) return;
+    const next = data.students.map((s) => (selectedIds.includes(s.id) ? { ...s, class: bulkTargetClass } : s));
+    persist({ ...data, students: next });
+    setBulkMoveMsg(`ย้าย ${selectedIds.length} คน ไปห้อง ${bulkTargetClass} เรียบร้อยแล้ว`);
+    setSelectedIds([]);
+    setTimeout(() => setBulkMoveMsg(""), 3000);
   }
 
   if (viewingId) {
@@ -2306,14 +2322,28 @@ function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords
           {(data.classes || []).map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
+      {isAdmin && (
+        <div className="sp-card">
+          <div className="sp-card-title">ย้ายห้องแบบกลุ่ม (เลือกนักเรียนในตารางด้านล่างก่อน)</div>
+          <div className="sp-inline-form">
+            <span>เลือกแล้ว {selectedIds.length} คน</span>
+            <select className="sp-select" value={bulkTargetClass} onChange={(e) => setBulkTargetClass(e.target.value)}>
+              {(data.classes || []).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <button className="sp-btn-primary" type="button" disabled={selectedIds.length === 0} onClick={bulkMove}>ย้ายไปห้องที่เลือก</button>
+          </div>
+          {bulkMoveMsg && <div className="sp-success">{bulkMoveMsg}</div>}
+        </div>
+      )}
       <div className="sp-card">
         <table className="sp-table">
-          <thead><tr><th>เลขที่</th><th>ชื่อ</th><th>รหัสนักเรียน</th><th>ชั้น</th><th>Username</th>{canViewPasswords && <th>รหัสผ่าน</th>}<th></th></tr></thead>
+          <thead><tr>{isAdmin && <th></th>}<th>เลขที่</th><th>ชื่อ</th><th>รหัสนักเรียน</th><th>ชั้น</th><th>Username</th>{canViewPasswords && <th>รหัสผ่าน</th>}<th></th></tr></thead>
           <tbody>
             {visibleStudents.map((s) => {
               const u = data.users.find((u) => u.studentId === s.id);
               return (
                 <tr key={s.id}>
+                  {isAdmin && <td><input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSelect(s.id)} /></td>}
                   <td>{s.number}</td><td>{s.name}</td><td>{s.studentCode || "-"}</td><td>{s.class}</td><td>{u ? u.username : "-"}</td>
                   {canViewPasswords && (
                     <td>
@@ -3001,13 +3031,23 @@ function TeacherMessages({ data, persist, session }) {
   const [chatError, setChatError] = useState("");
   const threadEndRef = useRef(null);
 
+  const currentTermId = data.terms.find((t) => t.isCurrent)?.id;
   const myMessages = (data.messages || []).filter((m) => m.teacherUsername === session.username && (m.type || "subject") === chatType);
-  const threadKeys = [...new Set(myMessages.map((m) => `${m.studentId}__${m.subject || ""}`))];
-  const threadList = threadKeys.map((key) => {
-    const [studentId, subject] = key.split("__");
-    const s = data.students.find((s) => s.id === studentId);
-    return s ? { key, student: s, subject } : null;
-  }).filter(Boolean);
+
+  let threadList = [];
+  if (chatType === "subject") {
+    const myAssignments = data.subjectTeacherAssignments.filter((a) => a.teacherUsername === session.username && a.termId === currentTermId);
+    threadList = myAssignments.flatMap((a) =>
+      data.students.filter((s) => s.class === a.class).map((s) => ({ key: `${s.id}__${a.subject}`, student: s, subject: a.subject }))
+    );
+  } else {
+    const myHomeroom = (data.homeroomAssignments || []).find((h) => h.teacherUsername === session.username);
+    if (myHomeroom) {
+      threadList = data.students.filter((s) => s.class === myHomeroom.class).map((s) => ({ key: `${s.id}__`, student: s, subject: "" }));
+    }
+  }
+  // sort: contacts with unread/existing messages first isn't required — just alpha by student number for a stable, browsable roster
+  threadList.sort((a, b) => (a.student.number || 0) - (b.student.number || 0));
 
   const activeThread = threadList.find((t) => t.key === openThreadKey);
 
@@ -3053,13 +3093,17 @@ function TeacherMessages({ data, persist, session }) {
       <div className="sp-two-col">
         <div className="sp-card">
           <div className="sp-card-title">รายชื่อ</div>
-          {threadList.length === 0 && <div className="sp-empty">ยังไม่มีข้อความเข้ามาในแท็บนี้</div>}
-          {threadList.map((t) => (
-            <button key={t.key} className={"sp-nav-item" + (openThreadKey === t.key ? " active" : "")} style={{ width: "100%" }} onClick={() => setOpenThreadKey(t.key)}>
-              <Avatar name={t.student.name} avatarDataUrl={t.student.avatarDataUrl} size={26} />
-              <span>{t.student.name}{t.subject ? ` · ${t.subject}` : ""}</span>
-            </button>
-          ))}
+          {threadList.length === 0 && <div className="sp-empty">{chatType === "subject" ? "คุณยังไม่ได้รับมอบหมายให้สอนวิชาใดในเทอมนี้" : "คุณไม่ได้เป็นครูประจำชั้นของห้องใด"}</div>}
+          {threadList.map((t) => {
+            const hasMsg = myMessages.some((m) => m.studentId === t.student.id && (m.subject || "") === t.subject);
+            return (
+              <button key={t.key} className={"sp-nav-item" + (openThreadKey === t.key ? " active" : "")} style={{ width: "100%" }} onClick={() => setOpenThreadKey(t.key)}>
+                <Avatar name={t.student.name} avatarDataUrl={t.student.avatarDataUrl} size={26} />
+                <span>{t.student.name}{t.subject ? ` · ${t.subject}` : ""}</span>
+                {hasMsg && <span className="sp-chat-dot" />}
+              </button>
+            );
+          })}
         </div>
         <div className="sp-card">
           {!activeThread ? <div className="sp-empty">เลือกรายชื่อทางซ้ายเพื่อดูข้อความ</div> : (
@@ -3269,7 +3313,7 @@ function playNotificationSound() {
   } catch (e) { /* autoplay blocked or unsupported — ignore */ }
 }
 
-function NotificationBell({ data, persist, session }) {
+function NotificationBell({ data, persist, session, setView, role }) {
   const [open, setOpen] = useState(false);
   const prevUnreadRef = useRef(null);
 
@@ -3296,6 +3340,20 @@ function NotificationBell({ data, persist, session }) {
     persist({ ...data, notificationPrefs: { ...(data.notificationPrefs || {}), [session.username]: { soundEnabled: !soundEnabled } } });
   }
 
+  function viewForType(relatedType) {
+    if (relatedType === "chat") return "messages";
+    if (relatedType === "assignment") return "assignments";
+    if (relatedType === "announcement") return role === "student" ? "dashboard" : "announcements";
+    return null;
+  }
+
+  function handleNotifClick(n) {
+    markRead(n.id);
+    const target = viewForType(n.relatedType);
+    if (target && setView) setView(target);
+    setOpen(false);
+  }
+
   return (
     <div className="sp-bell-wrap">
       <button className="sp-bell-btn" onClick={() => setOpen((o) => !o)} title="การแจ้งเตือน">
@@ -3313,7 +3371,7 @@ function NotificationBell({ data, persist, session }) {
             <div className="sp-bell-list">
               {notifs.length === 0 && <div className="sp-empty">ไม่มีการแจ้งเตือน</div>}
               {notifs.slice(0, 30).map((n) => (
-                <button key={n.id} className={"sp-bell-item" + (n.isRead ? "" : " unread")} type="button" onClick={() => markRead(n.id)}>
+                <button key={n.id} className={"sp-bell-item" + (n.isRead ? "" : " unread") + (viewForType(n.relatedType) ? " clickable" : "")} type="button" onClick={() => handleNotifClick(n)}>
                   <div className="sp-bell-item-title">{n.title}</div>
                   <div className="sp-bell-item-body">{n.body}</div>
                   <div className="sp-bell-item-time">{n.createdAt}</div>
@@ -3378,7 +3436,34 @@ function AdminDashboard({ data, persist, session }) {
   const teacherCount = data.users.filter((u) => u.role === "teacher").length;
   const adminCount = data.users.filter((u) => u.role === "admin").length;
   const currentTerm = data.terms.find((t) => t.isCurrent) || data.terms[0];
+  const currentYear = data.academicYears.find((y) => y.isCurrent) || data.academicYears[0];
   const pendingRequests = (data.gradeUnlockRequests || []).filter((r) => r.status === "pending");
+  const [confirmingPromotion, setConfirmingPromotion] = useState(false);
+  const [promotionDone, setPromotionDone] = useState("");
+
+  function startNewAcademicYear() {
+    const nextLabel = String(Number(currentYear.label) + 1);
+    const newYearId = genId("ay");
+    const newTerm1Id = genId("t");
+    const newTerm2Id = genId("t");
+    let next = {
+      ...data,
+      academicYears: [...data.academicYears.map((y) => ({ ...y, isCurrent: false })), { id: newYearId, label: nextLabel, isCurrent: true }],
+      terms: [
+        ...data.terms.map((t) => ({ ...t, isCurrent: false })),
+        { id: newTerm1Id, academicYearId: newYearId, termNumber: 1, isCurrent: true, status: "open" },
+        { id: newTerm2Id, academicYearId: newYearId, termNumber: 2, isCurrent: false, status: "open" },
+      ],
+      // ครูประจำชั้น/ครูผู้สอน ต้องแต่งตั้งใหม่ทุกปีการศึกษา — คะแนน/เกรดเก่ายังอยู่ครบเพราะผูกกับ termId เดิม
+      homeroomAssignments: [],
+      subjectTeacherAssignments: [],
+    };
+    next = withAudit(next, session?.username || "admin", "academic_year.promote", "academic_year", newYearId, { label: currentYear.label }, { label: nextLabel });
+    persist(next);
+    setConfirmingPromotion(false);
+    setPromotionDone(`เริ่มปีการศึกษา ${nextLabel} เรียบร้อยแล้ว — อย่าลืมแต่งตั้งครูประจำชั้น/ครูผู้สอนใหม่ที่หน้า "จัดการบัญชีครู/แอดมิน" และย้ายนักเรียนขึ้นห้องใหม่ที่หน้า "จัดการนักเรียน"`);
+    setTimeout(() => setPromotionDone(""), 8000);
+  }
 
   function toggleTermLock() {
     const nextStatus = currentTerm.status === "closed" ? "open" : "closed";
@@ -3420,6 +3505,24 @@ function AdminDashboard({ data, persist, session }) {
             {currentTerm.status === "closed" ? "เปิดเทอม (ปลดล็อกทั้งหมด)" : "ปิดเทอม (ล็อกการแก้ไขคะแนน)"}
           </button>
         </div>
+      </div>
+
+      <div className="sp-card">
+        <div className="sp-card-title">เลื่อนขึ้นปีการศึกษาใหม่</div>
+        <div className="sp-list-desc">
+          สร้างปีการศึกษา {String(Number(currentYear.label) + 1)} พร้อม 2 เทอมใหม่ (เปิดใช้งานอัตโนมัติ) — คะแนน/เกรดของปี {currentYear.label} จะยังอยู่ครบในระบบเป็นประวัติ (ไม่ถูกลบหรือปนกับปีใหม่)
+          แต่**ครูประจำชั้นและครูผู้สอนจะถูกล้างค่า** เพื่อให้แต่งตั้งใหม่สำหรับปีการศึกษานี้ และต้องย้ายนักเรียนขึ้นห้องใหม่เองที่หน้าจัดการนักเรียน
+        </div>
+        {!confirmingPromotion ? (
+          <button className="sp-btn-primary sp-btn-danger" type="button" onClick={() => setConfirmingPromotion(true)} style={{ marginTop: "10px" }}>เริ่มปีการศึกษาใหม่ (เลื่อนชั้น)</button>
+        ) : (
+          <div className="sp-inline-form" style={{ marginTop: "10px" }}>
+            <span style={{ fontWeight: 600 }}>ยืนยันสร้างปีการศึกษา {String(Number(currentYear.label) + 1)}?</span>
+            <button className="sp-btn-primary sp-btn-danger" type="button" onClick={startNewAcademicYear}>ยืนยัน</button>
+            <button className="sp-link-btn" type="button" onClick={() => setConfirmingPromotion(false)}>ยกเลิก</button>
+          </div>
+        )}
+        {promotionDone && <div className="sp-success" style={{ marginTop: "10px" }}>{promotionDone}</div>}
       </div>
 
       <div className="sp-card">
@@ -3564,7 +3667,7 @@ function SiteContentEditor({ data, persist }) {
 
 function AdminViews({ view, data, persist, session, onImpersonateStudent }) {
   switch (view) {
-    case "students": return <TeacherStudents data={data} persist={persist} onImpersonateStudent={onImpersonateStudent} canViewPasswords={true} />;
+    case "students": return <TeacherStudents data={data} persist={persist} onImpersonateStudent={onImpersonateStudent} canViewPasswords={true} isAdmin={true} />;
     case "staff": return <TeacherStaffAccounts data={data} persist={persist} session={session} />;
     case "classes": return <ManageClasses data={data} persist={persist} />;
     case "sitecontent": return <SiteContentEditor data={data} persist={persist} />;
@@ -3575,7 +3678,7 @@ function AdminViews({ view, data, persist, session, onImpersonateStudent }) {
 
 function TeacherViews({ view, data, persist, session }) {
   switch (view) {
-    case "students": return <TeacherStudents data={data} persist={persist} canViewPasswords={false} />;
+    case "students": return <TeacherStudents data={data} persist={persist} canViewPasswords={false} isAdmin={false} />;
     case "attendance": return <TeacherAttendance data={data} persist={persist} />;
     case "grades": return <TeacherGradeManagement data={data} persist={persist} session={session} />;
     case "assignments": return <TeacherAssignments data={data} persist={persist} />;
@@ -3635,6 +3738,7 @@ function GlobalStyle() {
       .sp-nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border:none; background:transparent; border-radius:6px; color:var(--muted); font-family:'Sarabun'; font-size:0.92rem; cursor:pointer; text-align:left; }
       .sp-nav-item:hover { background:var(--bg); color:var(--ink); }
       .sp-nav-item.active { background:var(--accent); color:#fff; }
+      .sp-chat-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); margin-left:auto; flex-shrink:0; }
       .sp-sidebar-foot { border-top:1px solid var(--line); padding-top:14px; margin-top:14px; }
       .sp-sidebar-user { font-size:0.8rem; color:var(--muted); padding:0 12px 8px; }
       .sp-logout { color:var(--accent2); }
@@ -3717,6 +3821,7 @@ function GlobalStyle() {
       .sp-bell-list { overflow-y:auto; max-height:50vh; display:flex; flex-direction:column; gap:2px; }
       .sp-bell-item { text-align:left; background:transparent; border:none; border-radius:6px; padding:8px 8px; cursor:pointer; }
       .sp-bell-item:hover { background:var(--bg); }
+      .sp-bell-item.clickable:hover { border-left:3px solid var(--accent); padding-left:5px; }
       .sp-bell-item.unread { background:var(--accent2-bg); }
       .sp-bell-item-title { font-size:0.82rem; font-weight:600; }
       .sp-bell-item-body { font-size:0.76rem; color:var(--muted); margin-top:2px; }
@@ -3783,6 +3888,7 @@ function GlobalStyle() {
       .sp-span-2 { grid-column:span 2; }
 
       .sp-inline-form { display:flex; gap:10px; align-items:center; }
+      .sp-inline-form .sp-input { flex:1; min-width:0; width:auto; }
       .sp-success { color:var(--accent); font-size:0.82rem; margin-top:8px; }
 
       .sp-attend-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:10px; }
@@ -3897,6 +4003,7 @@ function GlobalStyle() {
       .sp-drag-handle:hover { color:var(--accent); }
 
       .sp-comment-box { display:flex; gap:6px; align-items:center; margin-top:8px; width:100%; }
+      .sp-comment-box .sp-input { flex:1; min-width:0; }
       .sp-comment-input { font-size:0.78rem; }
       .sp-comment-saved { font-size:0.72rem; margin-top:4px; }
       .sp-teacher-submission-row { align-items:flex-start; flex-wrap:wrap; }
@@ -3917,6 +4024,8 @@ function GlobalStyle() {
         .sp-mobile-topbar .sp-seal-sm { width:32px; height:32px; }
         .sp-mobile-topbar .sp-brand-name-sm { font-size:1rem; }
         .sp-navmenu-panel { width:280px; }
+        .sp-bell-wrap { top:auto; bottom:16px; right:16px; }
+        .sp-bell-dropdown { top:auto; bottom:64px; right:16px; max-height:60vh; }
         .sp-admin-return-bar { position:sticky; top:0; z-index:20; }
         .sp-stats-grid { grid-template-columns:repeat(2,1fr); }
         .sp-two-col { grid-template-columns:1fr; }
@@ -4172,7 +4281,7 @@ export default function App() {
             setTimeout(() => setRefreshToast(false), 1600);
           }}
         />
-        <NotificationBell data={data} persist={persist} session={session} />
+        <NotificationBell data={data} persist={persist} session={session} setView={setView} role={effectiveRole} />
         {refreshToast && (
           <div className="sp-refresh-toast"><Check size={16} /> รีเฟรชข้อมูลแล้ว</div>
         )}
