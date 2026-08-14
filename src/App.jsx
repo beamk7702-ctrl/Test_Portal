@@ -56,6 +56,44 @@ async function sbSaveState(data) {
   }
 }
 
+// Compare-and-swap save for operations where losing a concurrent write is unacceptable
+// (e.g. two students registering within moments of each other). Re-reads the latest row,
+// applies `mutatorFn` to it, and writes back ONLY if nobody else changed the row since we
+// read it (checked via the updated_at timestamp as a version marker). If someone else won
+// the race, retries against the newest data. mutatorFn can throw { __validation: "msg" }
+// to signal a business-rule failure (e.g. "username taken") using the freshest data.
+async function sbConditionalSave(mutatorFn, maxRetries = 5) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const rows = await sbRest(`app_state?id=eq.${STORAGE_KEY}&select=data,updated_at`);
+    const currentRow = rows && rows[0];
+    if (!currentRow) {
+      const nextData = mutatorFn(SEED);
+      try {
+        await sbRest("app_state", {
+          method: "POST",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ id: STORAGE_KEY, data: nextData }),
+        });
+        return nextData;
+      } catch (e) {
+        await new Promise((r) => setTimeout(r, 150 + Math.random() * 250));
+        continue;
+      }
+    }
+    const nextData = mutatorFn(currentRow.data);
+    const result = await sbRest(
+      `app_state?id=eq.${STORAGE_KEY}&updated_at=eq.${encodeURIComponent(currentRow.updated_at)}`,
+      { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify({ data: nextData, updated_at: new Date().toISOString() }) }
+    );
+    if (result && result.length > 0) {
+      return nextData;
+    }
+    // Someone else wrote in between (0 rows matched our version check) — retry with fresh data.
+    await new Promise((r) => setTimeout(r, 150 + Math.random() * 250));
+  }
+  throw new Error("บันทึกไม่สำเร็จ เนื่องจากมีคนบันทึกพร้อมกันหลายครั้งเกินไป กรุณาลองใหม่อีกครั้ง");
+}
+
 async function sbUploadFile(file) {
   if (file.size > 10 * 1024 * 1024) {
     throw new Error("ไฟล์ใหญ่เกินไป (จำกัดไม่เกิน 10MB ต่อไฟล์)");
@@ -897,6 +935,7 @@ function Login({ users, students, classes = [], siteContent = {}, onLogin, onReg
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
 
   function handleSubmit() {
@@ -907,7 +946,7 @@ function Login({ users, students, classes = [], siteContent = {}, onLogin, onReg
       return;
     }
     setError("");
-    onLogin(user);
+    onLogin(user, rememberMe);
   }
 
   const classOptions = [...new Set([...classes, ...students.map((s) => s.class)])];
@@ -941,6 +980,10 @@ function Login({ users, students, classes = [], siteContent = {}, onLogin, onReg
                 </button>
               </div>
               {error && <div className="sp-error"><AlertCircle size={16} /> {error}</div>}
+              <label className="sp-remember-row">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                จำรหัสผ่าน (Remember Me)
+              </label>
               <button type="button" onClick={handleSubmit} className="sp-btn-primary sp-login-submit">เข้าสู่ระบบ</button>
             </div>
             {role === "student" && (
@@ -1647,39 +1690,46 @@ function StudentLeave({ data, student, persist }) {
 }
 
 function StudentMessages({ data, student, persist }) {
-  const currentTermId = data.terms.find((t) => t.isCurrent)?.id;
-  const subjectTeacherOptions = [...new Map(
-    data.subjectTeacherAssignments
-      .filter((a) => a.class === student.class && a.termId === currentTermId)
-      .map((a) => [a.teacherUsername + "_" + a.subject, a])
-  ).values()];
-  const homeroom = (data.homeroomAssignments || []).find((h) => h.class === student.class);
-
-  const [chatType, setChatType] = useState("subject");
-  const [selectedKey, setSelectedKey] = useState(subjectTeacherOptions[0] ? subjectTeacherOptions[0].teacherUsername + "_" + subjectTeacherOptions[0].subject : "");
+  const [tab, setTab] = useState("recent");
+  const [search, setSearch] = useState("");
+  const [teacherUsername, setTeacherUsername] = useState(null);
   const [body, setBody] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editBody, setEditBody] = useState("");
   const [chatError, setChatError] = useState("");
   const threadEndRef = useRef(null);
 
-  const activeSubjectOption = subjectTeacherOptions.find((a) => a.teacherUsername + "_" + a.subject === selectedKey);
-  const teacherUsername = chatType === "classroom" ? homeroom?.teacherUsername : activeSubjectOption?.teacherUsername;
-  const subjectFilter = chatType === "classroom" ? null : activeSubjectOption?.subject;
+  const allTeachers = data.users.filter((u) => u.role === "teacher");
+  const myMessages = (data.messages || []).filter((m) => m.studentId === student.id);
 
-  const thread = (data.messages || [])
-    .filter((m) => m.studentId === student.id && m.teacherUsername === teacherUsername && (m.type || "subject") === chatType && (chatType === "classroom" || m.subject === subjectFilter))
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const recentUsernames = [...new Set(myMessages.map((m) => m.teacherUsername))]
+    .map((u) => allTeachers.find((t) => t.username === u))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const lastA = Math.max(...myMessages.filter((m) => m.teacherUsername === a.username).map((m) => new Date(m.date).getTime()));
+      const lastB = Math.max(...myMessages.filter((m) => m.teacherUsername === b.username).map((m) => new Date(m.date).getTime()));
+      return lastB - lastA;
+    });
+
+  const searchLower = search.trim().toLowerCase();
+  const directoryTeachers = allTeachers.filter((t) => !searchLower || t.name.toLowerCase().includes(searchLower) || (t.email || "").toLowerCase().includes(searchLower));
+
+  const activeTeacher = allTeachers.find((t) => t.username === teacherUsername);
+  const thread = teacherUsername ? myMessages.filter((m) => m.teacherUsername === teacherUsername).sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
 
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ block: "end" });
-  }, [thread.length, teacherUsername, chatType, subjectFilter]);
+  }, [thread.length, teacherUsername]);
+
+  function openChat(username) {
+    setTeacherUsername(username);
+  }
 
   function send() {
     if (!body.trim() || !teacherUsername) return;
     if (containsProfanity(body)) { setChatError("ข้อความมีคำไม่สุภาพ กรุณาแก้ไขก่อนส่งครับ"); return; }
     setChatError("");
-    const msg = { id: genId("msg"), studentId: student.id, teacherUsername, sender: "student", body: body.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false, type: chatType, subject: subjectFilter };
+    const msg = { id: genId("msg"), studentId: student.id, teacherUsername, sender: "student", body: body.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false };
     const next = pushNotification({ ...data, messages: [...(data.messages || []), msg] }, teacherUsername, "chat_message", "ข้อความใหม่จาก " + student.name, body.trim().slice(0, 80), "chat", student.id);
     persist(next);
     setBody("");
@@ -1700,72 +1750,71 @@ function StudentMessages({ data, student, persist }) {
   return (
     <div>
       <h1>กล่องข้อความ / ติดต่อครู</h1>
-      <div className="sp-card">
-        <div className="sp-gm-tabs">
-          <button className={"sp-gm-tab" + (chatType === "subject" ? " active" : "")} onClick={() => setChatType("subject")}>แชทวิชาเรียน</button>
-          <button className={"sp-gm-tab" + (chatType === "classroom" ? " active" : "")} onClick={() => setChatType("classroom")}>แชทห้องเรียน</button>
+      <div className="sp-two-col">
+        <div className="sp-card">
+          <div className="sp-gm-tabs">
+            <button className={"sp-gm-tab" + (tab === "recent" ? " active" : "")} onClick={() => setTab("recent")}>ข้อความล่าสุด</button>
+            <button className={"sp-gm-tab" + (tab === "directory" ? " active" : "")} onClick={() => setTab("directory")}>รายชื่อทั้งหมด/ค้นหา</button>
+          </div>
+          {tab === "directory" && (
+            <input className="sp-input" placeholder="ค้นหาชื่อครู..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: "10px" }} />
+          )}
+          <div className="sp-contact-list">
+            {(tab === "recent" ? recentUsernames : directoryTeachers).length === 0 && (
+              <div className="sp-empty">{tab === "recent" ? "ยังไม่มีการสนทนา ลองไปที่แท็บ 'รายชื่อทั้งหมด' เพื่อเริ่มทักครูได้เลย" : "ไม่พบครูที่ค้นหา"}</div>
+            )}
+            {(tab === "recent" ? recentUsernames : directoryTeachers).map((t) => {
+              const hasMsg = myMessages.some((m) => m.teacherUsername === t.username);
+              return (
+                <button key={t.username} className={"sp-nav-item" + (teacherUsername === t.username ? " active" : "")} style={{ width: "100%" }} onClick={() => openChat(t.username)}>
+                  <Avatar name={t.name} size={26} />
+                  <span>{t.name}</span>
+                  {hasMsg && <span className="sp-chat-dot" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        {chatType === "subject" ? (
-          subjectTeacherOptions.length === 0 ? (
-            <div className="sp-empty">ยังไม่มีครูผู้สอนที่มอบหมายให้ห้องของคุณในเทอมนี้</div>
-          ) : (
+        <div className="sp-card">
+          {!activeTeacher ? <div className="sp-empty">เลือกครูทางซ้ายเพื่อเริ่มแชท</div> : (
             <>
-              <label className="sp-label">เลือกวิชา/ครูที่ต้องการติดต่อ</label>
-              <select className="sp-select" value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)}>
-                {subjectTeacherOptions.map((a) => {
-                  const t = data.users.find((u) => u.username === a.teacherUsername);
-                  const key = a.teacherUsername + "_" + a.subject;
-                  return <option key={key} value={key}>{a.subject} · {t?.name || a.teacherUsername}</option>;
-                })}
-              </select>
-            </>
-          )
-        ) : (
-          !homeroom ? (
-            <div className="sp-empty">ห้องของคุณยังไม่มีครูประจำชั้น</div>
-          ) : (
-            <div className="sp-list-desc">ครูประจำชั้น: {data.users.find((u) => u.username === homeroom.teacherUsername)?.name || homeroom.teacherUsername}</div>
-          )
-        )}
-      </div>
-      {teacherUsername && (
-        <>
-          <div className="sp-card sp-message-thread">
-            {thread.length === 0 && <div className="sp-empty">ยังไม่มีข้อความ ลองส่งคำถามได้เลย</div>}
-            {thread.map((m) => (
-              <div key={m.id} className={"sp-msg-bubble" + (m.sender === "student" ? " me" : "")}>
-                <div className="sp-msg-sender">{m.sender === "student" ? "ฉัน" : "ครู"}</div>
-                {editingId === m.id ? (
-                  <div className="sp-inline-form">
-                    <input className="sp-input" value={editBody} onChange={(e) => setEditBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(m.id); }} />
-                    <button className="sp-icon-btn" onClick={() => saveEdit(m.id)}><Check size={14} /></button>
-                    <button className="sp-icon-btn" onClick={() => setEditingId(null)}><X size={14} /></button>
+              <div className="sp-card-title">{activeTeacher.name}</div>
+              <div className="sp-message-thread">
+                {thread.length === 0 && <div className="sp-empty">ยังไม่มีข้อความ ลองส่งคำถามได้เลย</div>}
+                {thread.map((m) => (
+                  <div key={m.id} className={"sp-msg-bubble" + (m.sender === "student" ? " me" : "")}>
+                    <div className="sp-msg-sender">{m.sender === "student" ? "ฉัน" : "ครู"}</div>
+                    {editingId === m.id ? (
+                      <div className="sp-inline-form">
+                        <input className="sp-input" value={editBody} onChange={(e) => setEditBody(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(m.id); }} />
+                        <button className="sp-icon-btn" onClick={() => saveEdit(m.id)}><Check size={14} /></button>
+                        <button className="sp-icon-btn" onClick={() => setEditingId(null)}><X size={14} /></button>
+                      </div>
+                    ) : (
+                      <div>{m.body}</div>
+                    )}
+                    <div className="sp-msg-time">
+                      {m.date}{m.edited ? " · แก้ไขแล้ว" : ""}
+                      {m.sender === "student" && editingId !== m.id && (
+                        <>
+                          <button className="sp-msg-edit-btn" onClick={() => { setEditingId(m.id); setEditBody(m.body); }}>แก้ไข</button>
+                          <button className="sp-msg-edit-btn" onClick={() => deleteMessage(m.id)}>ลบ</button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div>{m.body}</div>
-                )}
-                <div className="sp-msg-time">
-                  {m.date}{m.edited ? " · แก้ไขแล้ว" : ""}
-                  {m.sender === "student" && editingId !== m.id && (
-                    <>
-                      <button className="sp-msg-edit-btn" onClick={() => { setEditingId(m.id); setEditBody(m.body); }}>แก้ไข</button>
-                      <button className="sp-msg-edit-btn" onClick={() => deleteMessage(m.id)}>ลบ</button>
-                    </>
-                  )}
-                </div>
+                ))}
+                <div ref={threadEndRef} />
               </div>
-            ))}
-            <div ref={threadEndRef} />
-          </div>
-          <div className="sp-card">
-            <div className="sp-inline-form">
-              <input className="sp-input" placeholder="พิมพ์ข้อความถึงครู..." value={body} onChange={(e) => { setBody(e.target.value); if (chatError) setChatError(""); }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
-              <button className="sp-btn-primary" type="button" onClick={send}><Send size={16} /> ส่ง</button>
-            </div>
-            {chatError && <div className="sp-error"><AlertCircle size={16} /> {chatError}</div>}
-          </div>
-        </>
-      )}
+              <div className="sp-inline-form" style={{ marginTop: "12px" }}>
+                <input className="sp-input" placeholder="พิมพ์ข้อความถึงครู..." value={body} onChange={(e) => { setBody(e.target.value); if (chatError) setChatError(""); }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+                <button className="sp-btn-primary" type="button" onClick={send}><Send size={16} /> ส่ง</button>
+              </div>
+              {chatError && <div className="sp-error"><AlertCircle size={16} /> {chatError}</div>}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1904,7 +1953,7 @@ function TeacherStaffAccounts({ data, persist, session }) {
     persist({ ...data, subjectTeacherAssignments: data.subjectTeacherAssignments.filter((a) => a.id !== id) });
   }
 
-  function addStaff() {
+  async function addStaff() {
     setError(""); setSuccess("");
     if (!name || !username || !email || !password) {
       setError("กรอกข้อมูลให้ครบทุกช่องครับ");
@@ -1912,7 +1961,12 @@ function TeacherStaffAccounts({ data, persist, session }) {
     }
     const usernameNorm = username.trim().toLowerCase();
     const emailNorm = email.trim().toLowerCase();
-    const taken = data.users.some((u) =>
+    let latest = data;
+    try {
+      const remote = await sbGetState();
+      if (remote) latest = remote;
+    } catch (e) { /* fall back to local data if the re-fetch itself fails */ }
+    const taken = latest.users.some((u) =>
       u.username.toLowerCase() === usernameNorm || u.username.toLowerCase() === emailNorm ||
       (u.email && (u.email.toLowerCase() === emailNorm || u.email.toLowerCase() === usernameNorm))
     );
@@ -1921,7 +1975,7 @@ function TeacherStaffAccounts({ data, persist, session }) {
       return;
     }
     const newStaff = { username: usernameNorm, password, role: newRole, name, email: emailNorm };
-    persist({ ...data, users: [...data.users, newStaff] });
+    persist({ ...latest, users: [...latest.users, newStaff] });
     setName(""); setUsername(""); setEmail(""); setPassword("");
     setSuccess(`เพิ่มบัญชี "${name}" เรียบร้อยแล้ว`);
   }
@@ -2250,12 +2304,17 @@ function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords
   const [bulkTargetClass, setBulkTargetClass] = useState((data.classes && data.classes[0]) || "");
   const [bulkMoveMsg, setBulkMoveMsg] = useState("");
 
-  function addStudent() {
+  async function addStudent() {
     if (!form.name || !form.username) return;
+    let latest = data;
+    try {
+      const remote = await sbGetState();
+      if (remote) latest = remote;
+    } catch (e) { /* fall back to local data if the re-fetch itself fails */ }
     const id = genId("s");
-    const nextStudents = [...data.students, { id, name: form.name, class: form.class, number: Number(form.number) || data.students.length + 1, studentCode: form.studentCode }];
-    const nextUsers = [...data.users, { username: form.username, password: form.password || "1234", role: "student", studentId: id }];
-    persist({ ...data, students: nextStudents, users: nextUsers });
+    const nextStudents = [...latest.students, { id, name: form.name, class: form.class, number: Number(form.number) || latest.students.length + 1, studentCode: form.studentCode }];
+    const nextUsers = [...latest.users, { username: form.username, password: form.password || "1234", role: "student", studentId: id }];
+    persist({ ...latest, students: nextStudents, users: nextUsers });
     setForm({ name: "", class: (data.classes && data.classes[0]) || "", number: "", studentCode: "", username: "", password: "1234" });
     setShowForm(false);
   }
@@ -3023,42 +3082,44 @@ function TeacherLeaveApproval({ data, persist }) {
 }
 
 function TeacherMessages({ data, persist, session }) {
-  const [chatType, setChatType] = useState("subject");
-  const [openThreadKey, setOpenThreadKey] = useState(null);
+  const [tab, setTab] = useState("recent");
+  const [search, setSearch] = useState("");
+  const [openStudentId, setOpenStudentId] = useState(null);
   const [reply, setReply] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editBody, setEditBody] = useState("");
   const [chatError, setChatError] = useState("");
   const threadEndRef = useRef(null);
 
-  const currentTermId = data.terms.find((t) => t.isCurrent)?.id;
-  const myMessages = (data.messages || []).filter((m) => m.teacherUsername === session.username && (m.type || "subject") === chatType);
+  const myMessages = (data.messages || []).filter((m) => m.teacherUsername === session.username);
 
-  let threadList = [];
-  if (chatType === "subject") {
-    const myAssignments = data.subjectTeacherAssignments.filter((a) => a.teacherUsername === session.username && a.termId === currentTermId);
-    threadList = myAssignments.flatMap((a) =>
-      data.students.filter((s) => s.class === a.class).map((s) => ({ key: `${s.id}__${a.subject}`, student: s, subject: a.subject }))
-    );
-  } else {
-    const myHomeroom = (data.homeroomAssignments || []).find((h) => h.teacherUsername === session.username);
-    if (myHomeroom) {
-      threadList = data.students.filter((s) => s.class === myHomeroom.class).map((s) => ({ key: `${s.id}__`, student: s, subject: "" }));
-    }
-  }
-  // sort: contacts with unread/existing messages first isn't required — just alpha by student number for a stable, browsable roster
-  threadList.sort((a, b) => (a.student.number || 0) - (b.student.number || 0));
+  const recentStudents = [...new Set(myMessages.map((m) => m.studentId))]
+    .map((id) => data.students.find((s) => s.id === id))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const lastA = Math.max(...myMessages.filter((m) => m.studentId === a.id).map((m) => new Date(m.date).getTime()));
+      const lastB = Math.max(...myMessages.filter((m) => m.studentId === b.id).map((m) => new Date(m.date).getTime()));
+      return lastB - lastA;
+    });
 
-  const activeThread = threadList.find((t) => t.key === openThreadKey);
+  const searchLower = search.trim().toLowerCase();
+  const directoryStudents = data.students.filter((s) => !searchLower || s.name.toLowerCase().includes(searchLower) || s.class.toLowerCase().includes(searchLower) || (s.studentCode || "").includes(searchLower));
+
+  const activeStudent = data.students.find((s) => s.id === openStudentId);
+  const thread = activeStudent ? myMessages.filter((m) => m.studentId === activeStudent.id).sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ block: "end" });
+  }, [thread.length, openStudentId]);
 
   function send() {
-    if (!reply.trim() || !activeThread) return;
+    if (!reply.trim() || !activeStudent) return;
     if (containsProfanity(reply)) { setChatError("ข้อความมีคำไม่สุภาพ กรุณาแก้ไขก่อนส่งครับ"); return; }
     setChatError("");
-    const msg = { id: genId("msg"), studentId: activeThread.student.id, teacherUsername: session.username, sender: "teacher", body: reply.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false, type: chatType, subject: activeThread.subject || null };
+    const msg = { id: genId("msg"), studentId: activeStudent.id, teacherUsername: session.username, sender: "teacher", body: reply.trim(), date: new Date().toISOString().slice(0, 16).replace("T", " "), edited: false };
     let next = { ...data, messages: [...(data.messages || []), msg] };
-    const studentUser = data.users.find((u) => u.studentId === activeThread.student.id);
-    if (studentUser) next = pushNotification(next, studentUser.username, "chat_message", "ข้อความใหม่จากครู " + session.name, reply.trim().slice(0, 80), "chat", activeThread.student.id);
+    const studentUser = data.users.find((u) => u.studentId === activeStudent.id);
+    if (studentUser) next = pushNotification(next, studentUser.username, "chat_message", "ข้อความใหม่จากครู " + session.name, reply.trim().slice(0, 80), "chat", activeStudent.id);
     persist(next);
     setReply("");
   }
@@ -3075,40 +3136,40 @@ function TeacherMessages({ data, persist, session }) {
     persist({ ...data, messages: data.messages.filter((m) => m.id !== id) });
   }
 
-  const thread = activeThread ? myMessages.filter((m) => m.studentId === activeThread.student.id && (m.subject || "") === activeThread.subject).sort((a, b) => new Date(a.date) - new Date(b.date)) : [];
-
-  useEffect(() => {
-    threadEndRef.current?.scrollIntoView({ block: "end" });
-  }, [thread.length, openThreadKey]);
-
   return (
     <div>
-      <h1>ข้อความจากนักเรียน</h1>
-      <div className="sp-card">
-        <div className="sp-gm-tabs">
-          <button className={"sp-gm-tab" + (chatType === "subject" ? " active" : "")} onClick={() => { setChatType("subject"); setOpenThreadKey(null); }}>แชทวิชาเรียน</button>
-          <button className={"sp-gm-tab" + (chatType === "classroom" ? " active" : "")} onClick={() => { setChatType("classroom"); setOpenThreadKey(null); }}>แชทห้องเรียน</button>
-        </div>
-      </div>
+      <h1>ข้อความ / ติดต่อนักเรียน</h1>
       <div className="sp-two-col">
         <div className="sp-card">
-          <div className="sp-card-title">รายชื่อ</div>
-          {threadList.length === 0 && <div className="sp-empty">{chatType === "subject" ? "คุณยังไม่ได้รับมอบหมายให้สอนวิชาใดในเทอมนี้" : "คุณไม่ได้เป็นครูประจำชั้นของห้องใด"}</div>}
-          {threadList.map((t) => {
-            const hasMsg = myMessages.some((m) => m.studentId === t.student.id && (m.subject || "") === t.subject);
-            return (
-              <button key={t.key} className={"sp-nav-item" + (openThreadKey === t.key ? " active" : "")} style={{ width: "100%" }} onClick={() => setOpenThreadKey(t.key)}>
-                <Avatar name={t.student.name} avatarDataUrl={t.student.avatarDataUrl} size={26} />
-                <span>{t.student.name}{t.subject ? ` · ${t.subject}` : ""}</span>
-                {hasMsg && <span className="sp-chat-dot" />}
-              </button>
-            );
-          })}
+          <div className="sp-gm-tabs">
+            <button className={"sp-gm-tab" + (tab === "recent" ? " active" : "")} onClick={() => setTab("recent")}>ข้อความล่าสุด</button>
+            <button className={"sp-gm-tab" + (tab === "directory" ? " active" : "")} onClick={() => setTab("directory")}>รายชื่อทั้งหมด/ค้นหา</button>
+          </div>
+          {tab === "directory" && (
+            <input className="sp-input" placeholder="ค้นหาชื่อ, ห้อง, หรือรหัสนักเรียน..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: "10px" }} />
+          )}
+          <div className="sp-contact-list">
+            {(tab === "recent" ? recentStudents : directoryStudents).length === 0 && (
+              <div className="sp-empty">{tab === "recent" ? "ยังไม่มีการสนทนา ลองไปที่แท็บ 'รายชื่อทั้งหมด' เพื่อเริ่มทักนักเรียนได้เลย" : "ไม่พบนักเรียนที่ค้นหา"}</div>
+            )}
+            {(tab === "recent" ? recentStudents : directoryStudents).map((s) => {
+              const hasMsg = myMessages.some((m) => m.studentId === s.id);
+              return (
+                <button key={s.id} className={"sp-nav-item" + (openStudentId === s.id ? " active" : "")} style={{ width: "100%" }} onClick={() => setOpenStudentId(s.id)}>
+                  <Avatar name={s.name} avatarDataUrl={s.avatarDataUrl} size={26} />
+                  <span>{s.name} · {s.class}</span>
+                  {hasMsg && <span className="sp-chat-dot" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="sp-card">
-          {!activeThread ? <div className="sp-empty">เลือกรายชื่อทางซ้ายเพื่อดูข้อความ</div> : (
+          {!activeStudent ? <div className="sp-empty">เลือกนักเรียนทางซ้ายเพื่อเริ่มแชท</div> : (
             <>
+              <div className="sp-card-title">{activeStudent.name} · {activeStudent.class}</div>
               <div className="sp-message-thread">
+                {thread.length === 0 && <div className="sp-empty">ยังไม่มีข้อความ ลองทักนักเรียนคนนี้ได้เลย</div>}
                 {thread.map((m) => (
                   <div key={m.id} className={"sp-msg-bubble" + (m.sender === "teacher" ? " me" : "")}>
                     <div className="sp-msg-sender">{m.sender === "teacher" ? "ฉัน" : "นักเรียน"}</div>
@@ -3786,6 +3847,8 @@ function GlobalStyle() {
       .sp-role-toggle button { flex:1; padding:8px; border:none; background:transparent; border-radius:6px; font-family:'Sarabun'; font-size:0.85rem; color:var(--muted); cursor:pointer; }
       .sp-role-toggle button.active { background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,0.08); font-weight:600; }
       .sp-login-submit { width:100%; margin-top:8px; }
+      .sp-remember-row { display:flex; align-items:center; gap:8px; font-size:0.84rem; color:var(--muted); margin:4px 0 6px; cursor:pointer; }
+      .sp-remember-row input { cursor:pointer; }
       .sp-error { display:flex; align-items:center; gap:6px; color:var(--accent2); font-size:0.8rem; margin:4px 0 10px; }
       .sp-grade-report-img { max-width:100%; border-radius:8px; border:1px solid var(--line); display:block; }
       .sp-grade-report-preview { display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
@@ -4120,6 +4183,25 @@ export default function App() {
     return merged;
   }
 
+  async function tryRestoreSession(loadedData) {
+    try {
+      const res = await window.storage.get("smudphok:session", false);
+      if (res && res.value) {
+        const remembered = JSON.parse(res.value);
+        // Re-validate against fresh data: the account must still exist with the same password
+        // (guards against a deleted account or a password that was reset since the last visit).
+        const stillValid = loadedData.users.find((u) => u.username === remembered.username && u.password === remembered.password);
+        if (stillValid) {
+          setSession(stillValid);
+          setViewMode(stillValid.role === "admin" ? "admin" : stillValid.role);
+          setView("dashboard");
+        } else {
+          window.storage.delete("smudphok:session", false).catch(() => {});
+        }
+      }
+    } catch (e) { /* no remembered session — normal case, nothing to do */ }
+  }
+
   async function load() {
     try {
       const remote = await sbGetState();
@@ -4131,11 +4213,13 @@ export default function App() {
           // One-time top-up happened just now — save it so deletions stick from here on.
           sbSaveState(merged).catch((e) => console.error("seed top-up save failed", e));
         }
+        if (!session) tryRestoreSession(merged);
       } else {
         const fresh = { ...SEED, _seeded: true };
         await sbSaveState(fresh);
         setData(fresh);
         setBackendError("");
+        if (!session) tryRestoreSession(fresh);
       }
     } catch (e) {
       console.error("Supabase load failed", e);
@@ -4178,16 +4262,24 @@ export default function App() {
     catch (e) { console.error("Supabase save failed", e); setBackendError(e.message || String(e)); return false; }
   }
 
-  function handleLogin(user) {
+  function handleLogin(user, rememberMe) {
     setSession(user);
     setViewMode(user.role === "admin" ? "admin" : user.role);
     setImpersonateStudentId(null);
     setView("dashboard");
+    try {
+      if (rememberMe) {
+        window.storage.set("smudphok:session", JSON.stringify(user), false).catch((e) => console.error("remember-me save failed", e));
+      } else {
+        window.storage.delete("smudphok:session", false).catch(() => {});
+      }
+    } catch (e) { console.error("remember-me storage unavailable", e); }
   }
   function handleLogout() {
     setSession(null);
     setViewMode(null);
     setImpersonateStudentId(null);
+    try { window.storage.delete("smudphok:session", false).catch(() => {}); } catch (e) { /* storage unavailable — nothing to clear */ }
   }
 
   function switchViewMode(mode) {
@@ -4207,27 +4299,32 @@ export default function App() {
   async function handleRegister({ name, studentCode, className, username, email, password }) {
     const usernameNorm = username.trim().toLowerCase();
     const emailNorm = email.trim().toLowerCase();
-    const taken = data.users.some((u) =>
-      u.username.toLowerCase() === usernameNorm ||
-      u.username.toLowerCase() === emailNorm ||
-      (u.email && (u.email.toLowerCase() === emailNorm || u.email.toLowerCase() === usernameNorm))
-    );
-    if (taken) {
-      return { error: "ชื่อผู้ใช้หรืออีเมลนี้ถูกใช้ลงทะเบียนแล้ว" };
-    }
-    const codeTaken = data.students.some((s) => s.studentCode && s.studentCode.trim() === studentCode.trim());
-    if (codeTaken) {
-      return { error: "รหัสนักเรียนนี้ถูกใช้ลงทะเบียนแล้ว" };
-    }
     const id = genId("s");
-    const classStudents = data.students.filter((s) => s.class === className);
-    const number = classStudents.length + 1;
-    const newStudent = { id, name, class: className, number, studentCode: studentCode.trim() };
-    const newUser = { username: usernameNorm, password, role: "student", studentId: id, email: emailNorm };
-    const next = { ...data, students: [...data.students, newStudent], users: [...data.users, newUser] };
-    const ok = await persist(next);
-    if (!ok) {
-      return { error: "บันทึกข้อมูลไม่สำเร็จ (เชื่อมต่อฐานข้อมูลไม่ได้) กรุณาลองใหม่อีกครั้ง — ถ้ายังไม่ได้ ลองเช็คอินเทอร์เน็ตแล้วรีเฟรชหน้านี้" };
+    let newUser = null;
+
+    try {
+      const nextData = await sbConditionalSave((latest) => {
+        const merged = mergeWithSeed(latest);
+        const taken = merged.users.some((u) =>
+          u.username.toLowerCase() === usernameNorm ||
+          u.username.toLowerCase() === emailNorm ||
+          (u.email && (u.email.toLowerCase() === emailNorm || u.email.toLowerCase() === usernameNorm))
+        );
+        if (taken) throw { __validation: "ชื่อผู้ใช้หรืออีเมลนี้ถูกใช้ลงทะเบียนแล้ว" };
+        const codeTaken = merged.students.some((s) => s.studentCode && s.studentCode.trim() === studentCode.trim());
+        if (codeTaken) throw { __validation: "รหัสนักเรียนนี้ถูกใช้ลงทะเบียนแล้ว" };
+        const classStudents = merged.students.filter((s) => s.class === className);
+        const number = classStudents.length + 1;
+        const newStudent = { id, name, class: className, number, studentCode: studentCode.trim() };
+        newUser = { username: usernameNorm, password, role: "student", studentId: id, email: emailNorm };
+        return { ...merged, students: [...merged.students, newStudent], users: [...merged.users, newUser] };
+      });
+      setData(nextData);
+      setBackendError("");
+    } catch (e) {
+      if (e && e.__validation) return { error: e.__validation };
+      console.error("registration save failed", e);
+      return { error: "บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง — ถ้ายังไม่ได้ ลองเช็คอินเทอร์เน็ตแล้วรีเฟรชหน้านี้" };
     }
     setSession(newUser);
     setView("dashboard");
