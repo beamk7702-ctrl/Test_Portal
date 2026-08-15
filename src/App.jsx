@@ -1929,6 +1929,7 @@ function TeacherStaffAccounts({ data, persist, session }) {
   const [resetPw, setResetPw] = useState("");
   const [visiblePw, setVisiblePw] = useState({});
   const [addingAssignmentFor, setAddingAssignmentFor] = useState(null);
+  const [confirmDeleteStaff, setConfirmDeleteStaff] = useState(null);
   const [newSubject, setNewSubject] = useState("");
   const [newClass, setNewClass] = useState((data.classes && data.classes[0]) || "");
 
@@ -1961,21 +1962,23 @@ function TeacherStaffAccounts({ data, persist, session }) {
     }
     const usernameNorm = username.trim().toLowerCase();
     const emailNorm = email.trim().toLowerCase();
-    let latest = data;
     try {
-      const remote = await sbGetState();
-      if (remote) latest = remote;
-    } catch (e) { /* fall back to local data if the re-fetch itself fails */ }
-    const taken = latest.users.some((u) =>
-      u.username.toLowerCase() === usernameNorm || u.username.toLowerCase() === emailNorm ||
-      (u.email && (u.email.toLowerCase() === emailNorm || u.email.toLowerCase() === usernameNorm))
-    );
-    if (taken) {
-      setError("ชื่อผู้ใช้หรืออีเมลนี้ถูกใช้แล้ว");
+      const nextData = await sbConditionalSave((latest) => {
+        const taken = latest.users.some((u) =>
+          u.username.toLowerCase() === usernameNorm || u.username.toLowerCase() === emailNorm ||
+          (u.email && (u.email.toLowerCase() === emailNorm || u.email.toLowerCase() === usernameNorm))
+        );
+        if (taken) throw { __validation: "ชื่อผู้ใช้หรืออีเมลนี้ถูกใช้แล้ว" };
+        const newStaff = { username: usernameNorm, password, role: newRole, name, email: emailNorm };
+        return { ...latest, users: [...latest.users, newStaff] };
+      });
+      persist(nextData);
+    } catch (e) {
+      if (e && e.__validation) { setError(e.__validation); return; }
+      console.error("addStaff save failed", e);
+      setError("บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
       return;
     }
-    const newStaff = { username: usernameNorm, password, role: newRole, name, email: emailNorm };
-    persist({ ...latest, users: [...latest.users, newStaff] });
     setName(""); setUsername(""); setEmail(""); setPassword("");
     setSuccess(`เพิ่มบัญชี "${name}" เรียบร้อยแล้ว`);
   }
@@ -1983,6 +1986,7 @@ function TeacherStaffAccounts({ data, persist, session }) {
   function removeStaff(username) {
     if (username === session?.username) return; // safety: can't remove yourself
     persist({ ...data, users: data.users.filter((u) => u.username !== username) });
+    setConfirmDeleteStaff(null);
   }
 
   function submitReset(username) {
@@ -2036,7 +2040,7 @@ function TeacherStaffAccounts({ data, persist, session }) {
                   </td>
                   <td style={{ display: "flex", gap: "4px" }}>
                     <button className="sp-icon-btn" onClick={() => { setResetTarget(resetTarget === s.username ? null : s.username); setResetPw(""); }} title="เปลี่ยนรหัสผ่าน"><Shield size={16} /></button>
-                    {s.username !== session?.username && <button className="sp-icon-btn" onClick={() => removeStaff(s.username)}><Trash2 size={16} /></button>}
+                    {s.username !== session?.username && <button className="sp-icon-btn" onClick={() => setConfirmDeleteStaff(confirmDeleteStaff === s.username ? null : s.username)} title="ลบบัญชี"><Trash2 size={16} /></button>}
                   </td>
                 </tr>
                 {resetTarget === s.username && (
@@ -2045,6 +2049,18 @@ function TeacherStaffAccounts({ data, persist, session }) {
                       <div className="sp-inline-form">
                         <input className="sp-input" type="password" placeholder={`รหัสผ่านใหม่สำหรับ ${s.name}`} value={resetPw} onChange={(e) => setResetPw(e.target.value)} />
                         <button className="sp-btn-primary" type="button" onClick={() => submitReset(s.username)}>บันทึกรหัสผ่าน</button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {confirmDeleteStaff === s.username && (
+                  <tr>
+                    <td colSpan={6}>
+                      <div className="sp-confirm-delete-row">
+                        <AlertCircle size={16} />
+                        <span>ยืนยันลบบัญชี "{s.name}" ({s.role === "admin" ? "แอดมิน" : "ครู"}) ออกจากระบบ? ไม่สามารถกู้คืนได้</span>
+                        <button className="sp-btn-primary sp-btn-danger" type="button" onClick={() => removeStaff(s.username)}>ยืนยันลบ</button>
+                        <button className="sp-link-btn" type="button" onClick={() => setConfirmDeleteStaff(null)}>ยกเลิก</button>
                       </div>
                     </td>
                   </tr>
@@ -2303,18 +2319,23 @@ function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkTargetClass, setBulkTargetClass] = useState((data.classes && data.classes[0]) || "");
   const [bulkMoveMsg, setBulkMoveMsg] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   async function addStudent() {
     if (!form.name || !form.username) return;
-    let latest = data;
-    try {
-      const remote = await sbGetState();
-      if (remote) latest = remote;
-    } catch (e) { /* fall back to local data if the re-fetch itself fails */ }
     const id = genId("s");
-    const nextStudents = [...latest.students, { id, name: form.name, class: form.class, number: Number(form.number) || latest.students.length + 1, studentCode: form.studentCode }];
-    const nextUsers = [...latest.users, { username: form.username, password: form.password || "1234", role: "student", studentId: id }];
-    persist({ ...latest, students: nextStudents, users: nextUsers });
+    try {
+      const nextData = await sbConditionalSave((latest) => {
+        const nextStudents = [...latest.students, { id, name: form.name, class: form.class, number: Number(form.number) || latest.students.length + 1, studentCode: form.studentCode }];
+        const nextUsers = [...latest.users, { username: form.username, password: form.password || "1234", role: "student", studentId: id }];
+        return { ...latest, students: nextStudents, users: nextUsers };
+      });
+      persist(nextData);
+    } catch (e) {
+      console.error("addStudent save failed", e);
+      alert("บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      return;
+    }
     setForm({ name: "", class: (data.classes && data.classes[0]) || "", number: "", studentCode: "", username: "", password: "1234" });
     setShowForm(false);
   }
@@ -2327,6 +2348,7 @@ function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords
       grades: data.grades.filter((g) => g.studentId !== id),
       attendance: data.attendance.filter((a) => a.studentId !== id),
     });
+    setConfirmDeleteId(null);
   }
 
   function toggleSelect(id) {
@@ -2401,24 +2423,38 @@ function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords
             {visibleStudents.map((s) => {
               const u = data.users.find((u) => u.studentId === s.id);
               return (
-                <tr key={s.id}>
-                  {isAdmin && <td><input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSelect(s.id)} /></td>}
-                  <td>{s.number}</td><td>{s.name}</td><td>{s.studentCode || "-"}</td><td>{s.class}</td><td>{u ? u.username : "-"}</td>
-                  {canViewPasswords && (
-                    <td>
-                      {u ? (
-                        <button className="sp-pw-reveal" type="button" onClick={() => setVisiblePw((v) => ({ ...v, [s.id]: !v[s.id] }))}>
-                          {visiblePw[s.id] ? u.password : "••••••••"}
-                          {visiblePw[s.id] ? <EyeOff size={13} /> : <Eye size={13} />}
-                        </button>
-                      ) : "-"}
+                <Fragment key={s.id}>
+                  <tr>
+                    {isAdmin && <td><input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSelect(s.id)} /></td>}
+                    <td>{s.number}</td><td>{s.name}</td><td>{s.studentCode || "-"}</td><td>{s.class}</td><td>{u ? u.username : "-"}</td>
+                    {canViewPasswords && (
+                      <td>
+                        {u ? (
+                          <button className="sp-pw-reveal" type="button" onClick={() => setVisiblePw((v) => ({ ...v, [s.id]: !v[s.id] }))}>
+                            {visiblePw[s.id] ? u.password : "••••••••"}
+                            {visiblePw[s.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                        ) : "-"}
+                      </td>
+                    )}
+                    <td style={{ display: "flex", gap: "4px" }}>
+                      <button className="sp-icon-btn" onClick={() => setViewingId(s.id)} title="ดูโปรไฟล์"><User size={16} /></button>
+                      <button className="sp-icon-btn" onClick={() => setConfirmDeleteId(confirmDeleteId === s.id ? null : s.id)} title="ลบนักเรียน"><Trash2 size={16} /></button>
                     </td>
+                  </tr>
+                  {confirmDeleteId === s.id && (
+                    <tr>
+                      <td colSpan={isAdmin ? 7 : 6}>
+                        <div className="sp-confirm-delete-row">
+                          <AlertCircle size={16} />
+                          <span>ยืนยันลบ "{s.name}" ออกจากระบบ? การลบนี้จะลบบัญชีผู้ใช้ เกรด และประวัติการเข้าเรียนของนักเรียนคนนี้ทั้งหมด และไม่สามารถกู้คืนได้</span>
+                          <button className="sp-btn-primary sp-btn-danger" type="button" onClick={() => removeStudent(s.id)}>ยืนยันลบ</button>
+                          <button className="sp-link-btn" type="button" onClick={() => setConfirmDeleteId(null)}>ยกเลิก</button>
+                        </div>
+                      </td>
+                    </tr>
                   )}
-                  <td style={{ display: "flex", gap: "4px" }}>
-                    <button className="sp-icon-btn" onClick={() => setViewingId(s.id)} title="ดูโปรไฟล์"><User size={16} /></button>
-                    <button className="sp-icon-btn" onClick={() => removeStudent(s.id)}><Trash2 size={16} /></button>
-                  </td>
-                </tr>
+                </Fragment>
               );
             })}
           </tbody>
@@ -3555,6 +3591,24 @@ function AdminDashboard({ data, persist, session }) {
         <div className="sp-card sp-stat"><div className="sp-stat-label">บัญชีครู</div><div className="sp-stat-value">{teacherCount}</div></div>
         <div className="sp-card sp-stat"><div className="sp-stat-label">บัญชีแอดมิน</div><div className="sp-stat-value">{adminCount}</div></div>
         <div className="sp-card sp-stat"><div className="sp-stat-label">ห้องเรียนทั้งหมด</div><div className="sp-stat-value">{(data.classes || []).length}</div></div>
+      </div>
+
+      <div className="sp-card">
+        <div className="sp-card-title">จำนวนนักเรียนแยกตามห้อง (รวม {data.students.length} คน)</div>
+        <table className="sp-table">
+          <thead><tr><th>ห้อง</th><th>จำนวนนักเรียน</th></tr></thead>
+          <tbody>
+            {(data.classes || []).map((c) => {
+              const count = data.students.filter((s) => s.class === c).length;
+              return (
+                <tr key={c}>
+                  <td>{c}</td>
+                  <td>{count} คน</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       <div className="sp-card">
