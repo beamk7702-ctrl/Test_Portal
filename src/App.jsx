@@ -2053,23 +2053,25 @@ function TeacherStaffAccounts({ data, persist, session }) {
                     </td>
                   </tr>
                 )}
-                {confirmDeleteStaff === s.username && (
-                  <tr>
-                    <td colSpan={6}>
-                      <div className="sp-confirm-delete-row">
-                        <AlertCircle size={16} />
-                        <span>ยืนยันลบบัญชี "{s.name}" ({s.role === "admin" ? "แอดมิน" : "ครู"}) ออกจากระบบ? ไม่สามารถกู้คืนได้</span>
-                        <button className="sp-btn-primary sp-btn-danger" type="button" onClick={() => removeStaff(s.username)}>ยืนยันลบ</button>
-                        <button className="sp-link-btn" type="button" onClick={() => setConfirmDeleteStaff(null)}>ยกเลิก</button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
               </Fragment>
             ))}
           </tbody>
         </table>
       </div>
+      {confirmDeleteStaff && (() => {
+        const s = staff.find((st) => st.username === confirmDeleteStaff);
+        if (!s) return null;
+        return (
+          <div className="sp-card sp-confirm-delete-row">
+            <AlertCircle size={16} />
+            <span>ยืนยันลบบัญชี "{s.name}" ({s.role === "admin" ? "แอดมิน" : "ครู"}) ออกจากระบบ? ไม่สามารถกู้คืนได้</span>
+            <div className="sp-confirm-delete-actions">
+              <button className="sp-btn-primary sp-btn-danger" type="button" onClick={() => removeStaff(s.username)}>ยืนยันลบ</button>
+              <button className="sp-link-btn" type="button" onClick={() => setConfirmDeleteStaff(null)}>ยกเลิก</button>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="sp-card">
         <div className="sp-card-title">สิทธิ์การสอน (ครูประจำชั้น / วิชาที่สอน)</div>
@@ -2423,43 +2425,43 @@ function TeacherStudents({ data, persist, onImpersonateStudent, canViewPasswords
             {visibleStudents.map((s) => {
               const u = data.users.find((u) => u.studentId === s.id);
               return (
-                <Fragment key={s.id}>
-                  <tr>
-                    {isAdmin && <td><input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSelect(s.id)} /></td>}
-                    <td>{s.number}</td><td>{s.name}</td><td>{s.studentCode || "-"}</td><td>{s.class}</td><td>{u ? u.username : "-"}</td>
-                    {canViewPasswords && (
-                      <td>
-                        {u ? (
-                          <button className="sp-pw-reveal" type="button" onClick={() => setVisiblePw((v) => ({ ...v, [s.id]: !v[s.id] }))}>
-                            {visiblePw[s.id] ? u.password : "••••••••"}
-                            {visiblePw[s.id] ? <EyeOff size={13} /> : <Eye size={13} />}
-                          </button>
-                        ) : "-"}
-                      </td>
-                    )}
-                    <td style={{ display: "flex", gap: "4px" }}>
-                      <button className="sp-icon-btn" onClick={() => setViewingId(s.id)} title="ดูโปรไฟล์"><User size={16} /></button>
-                      <button className="sp-icon-btn" onClick={() => setConfirmDeleteId(confirmDeleteId === s.id ? null : s.id)} title="ลบนักเรียน"><Trash2 size={16} /></button>
+                <tr key={s.id}>
+                  {isAdmin && <td><input type="checkbox" checked={selectedIds.includes(s.id)} onChange={() => toggleSelect(s.id)} /></td>}
+                  <td>{s.number}</td><td>{s.name}</td><td>{s.studentCode || "-"}</td><td>{s.class}</td><td>{u ? u.username : "-"}</td>
+                  {canViewPasswords && (
+                    <td>
+                      {u ? (
+                        <button className="sp-pw-reveal" type="button" onClick={() => setVisiblePw((v) => ({ ...v, [s.id]: !v[s.id] }))}>
+                          {visiblePw[s.id] ? u.password : "••••••••"}
+                          {visiblePw[s.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      ) : "-"}
                     </td>
-                  </tr>
-                  {confirmDeleteId === s.id && (
-                    <tr>
-                      <td colSpan={isAdmin ? 7 : 6}>
-                        <div className="sp-confirm-delete-row">
-                          <AlertCircle size={16} />
-                          <span>ยืนยันลบ "{s.name}" ออกจากระบบ? การลบนี้จะลบบัญชีผู้ใช้ เกรด และประวัติการเข้าเรียนของนักเรียนคนนี้ทั้งหมด และไม่สามารถกู้คืนได้</span>
-                          <button className="sp-btn-primary sp-btn-danger" type="button" onClick={() => removeStudent(s.id)}>ยืนยันลบ</button>
-                          <button className="sp-link-btn" type="button" onClick={() => setConfirmDeleteId(null)}>ยกเลิก</button>
-                        </div>
-                      </td>
-                    </tr>
                   )}
-                </Fragment>
+                  <td style={{ display: "flex", gap: "4px" }}>
+                    <button className="sp-icon-btn" onClick={() => setViewingId(s.id)} title="ดูโปรไฟล์"><User size={16} /></button>
+                    <button className="sp-icon-btn" onClick={() => setConfirmDeleteId(confirmDeleteId === s.id ? null : s.id)} title="ลบนักเรียน"><Trash2 size={16} /></button>
+                  </td>
+                </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      {confirmDeleteId && (() => {
+        const s = data.students.find((st) => st.id === confirmDeleteId);
+        if (!s) return null;
+        return (
+          <div className="sp-card sp-confirm-delete-row">
+            <AlertCircle size={16} />
+            <span>ยืนยันลบ "{s.name}" ออกจากระบบ? การลบนี้จะลบบัญชีผู้ใช้ เกรด และประวัติการเข้าเรียนของนักเรียนคนนี้ทั้งหมด และไม่สามารถกู้คืนได้</span>
+            <div className="sp-confirm-delete-actions">
+              <button className="sp-btn-primary sp-btn-danger" type="button" onClick={() => removeStudent(s.id)}>ยืนยันลบ</button>
+              <button className="sp-link-btn" type="button" onClick={() => setConfirmDeleteId(null)}>ยกเลิก</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -3904,6 +3906,9 @@ function GlobalStyle() {
       .sp-remember-row { display:flex; align-items:center; gap:8px; font-size:0.84rem; color:var(--muted); margin:4px 0 6px; cursor:pointer; }
       .sp-remember-row input { cursor:pointer; }
       .sp-error { display:flex; align-items:center; gap:6px; color:var(--accent2); font-size:0.8rem; margin:4px 0 10px; }
+      .sp-confirm-delete-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--accent2-bg); border:1px solid var(--accent2); border-radius:8px; padding:12px; color:var(--accent2); font-size:0.85rem; }
+      .sp-confirm-delete-row span { flex:1 1 100%; min-width:200px; }
+      .sp-confirm-delete-actions { display:flex; align-items:center; gap:14px; margin-left:auto; }
       .sp-grade-report-img { max-width:100%; border-radius:8px; border:1px solid var(--line); display:block; }
       .sp-grade-report-preview { display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
       .sp-grade-report-actions { display:flex; gap:8px; align-items:center; }
@@ -4059,7 +4064,7 @@ function GlobalStyle() {
       .sp-theme-toggle:hover { border-color:var(--accent); color:var(--accent); }
 
       .sp-assignment-row { flex-wrap:wrap; gap:12px; }
-      .sp-assignment-action { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+      .sp-assignment-action { display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex:1 1 260px; min-width:240px; }
       .sp-submitted-box { display:flex; align-items:center; gap:8px; font-size:0.8rem; color:var(--muted); }
       .sp-submit-form { flex-wrap:nowrap; }
       .sp-submit-form .sp-input { width:180px; }
