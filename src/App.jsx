@@ -967,7 +967,7 @@ function Login({ users, students, classes = [], siteContent = {}, onLogin, onReg
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
 
   function handleSubmit() {
