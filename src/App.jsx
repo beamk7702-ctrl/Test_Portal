@@ -3854,14 +3854,22 @@ function GlobalStyle() {
       html, body { margin:0; padding:0; }
 
       .sp-app {
-        --bg:#F5F7FB; --surface:#FFFFFF; --ink:#14181A; --muted:#6B7280; --line:#DCE3EE;
-        --accent:#1E3A8A; --accent-hover:#16305F; --accent2:#D42027; --accent2-bg:#FBE7E8;
+        --bg:#F6F7FB; --surface:#FFFFFF; --ink:#111827; --muted:#667085; --line:#E7EAF2;
+        --accent:#2748C4; --accent-hover:#1D3AA3; --accent2:#DC2626; --accent2-bg:#FEF1F1;
+        --shadow-sm:0 1px 2px rgba(17,24,39,0.05);
+        --shadow-card:0 1px 2px rgba(17,24,39,0.04), 0 2px 10px rgba(17,24,39,0.05);
+        --shadow-card-hover:0 2px 4px rgba(17,24,39,0.05), 0 8px 24px rgba(17,24,39,0.09);
+        --shadow-pop:0 8px 28px rgba(17,24,39,0.16);
         min-height:100vh; display:flex; background:var(--bg); color:var(--ink); font-family:'Sarabun', sans-serif;
         transition: background .2s ease, color .2s ease;
       }
       .sp-app.dark {
         --bg:#12151A; --surface:#1B1F27; --ink:#EDEFF3; --muted:#9AA3B2; --line:#2A2F3A;
         --accent:#5B8DEF; --accent-hover:#7BA3F5; --accent2:#FF6B6B; --accent2-bg:#3A1E20;
+        --shadow-sm:0 1px 2px rgba(0,0,0,0.2);
+        --shadow-card:0 1px 2px rgba(0,0,0,0.2), 0 2px 10px rgba(0,0,0,0.24);
+        --shadow-card-hover:0 2px 4px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.32);
+        --shadow-pop:0 8px 28px rgba(0,0,0,0.45);
       }
       .sp-app.dark .sp-stamp, .sp-app.dark .sp-tag, .sp-app.dark .sp-status-btn { filter: brightness(1.35); }
       .sp-app.dark .sp-login-wrap { background: radial-gradient(circle at top left, #1B2338, var(--bg)); }
@@ -3884,9 +3892,9 @@ function GlobalStyle() {
       .sp-logout-icon { color:var(--accent2); border-color:var(--accent2-bg); }
       .sp-logout-icon:hover { background:var(--accent2-bg); border-color:var(--accent2); color:var(--accent2); }
       .sp-nav { display:flex; flex-direction:column; gap:2px; flex:1; }
-      .sp-nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border:none; background:transparent; border-radius:6px; color:var(--muted); font-family:'Sarabun'; font-size:0.92rem; cursor:pointer; text-align:left; }
+      .sp-nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border:none; background:transparent; border-radius:8px; color:var(--muted); font-family:'Sarabun'; font-size:0.92rem; cursor:pointer; text-align:left; transition:background .15s ease, color .15s ease; }
       .sp-nav-item:hover { background:var(--bg); color:var(--ink); }
-      .sp-nav-item.active { background:var(--accent); color:#fff; }
+      .sp-nav-item.active { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(39,72,196,0.28); }
       .sp-chat-dot { width:7px; height:7px; border-radius:50%; background:var(--accent); margin-left:auto; flex-shrink:0; }
       .sp-sidebar-foot { border-top:1px solid var(--line); padding-top:14px; margin-top:14px; }
       .sp-sidebar-user { font-size:0.8rem; color:var(--muted); padding:0 12px 8px; }
@@ -3926,7 +3934,7 @@ function GlobalStyle() {
       .sp-main { flex:1; padding:32px 40px; overflow-y:auto; overflow-x:hidden; }
 
       .sp-login-wrap { flex:1; display:flex; align-items:center; justify-content:center; min-height:100vh; width:100%; background: radial-gradient(circle at top left, #E8ECF7, var(--bg)); }
-      .sp-login-card { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:36px; width:380px; max-width:90vw; }
+      .sp-login-card { background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:36px; width:380px; max-width:90vw; box-shadow:var(--shadow-pop); }
       .sp-login-brand { display:flex; gap:12px; align-items:center; margin-bottom:24px; }
       .sp-brand-name { font-family:'Kanit', serif; font-weight:700; font-size:1.02rem; }
       .sp-brand-tag { font-size:0.78rem; color:var(--muted); margin-top:2px; }
@@ -3988,16 +3996,18 @@ function GlobalStyle() {
       .sp-pw-reveal:hover { border-color:var(--accent); color:var(--accent); }
 
       .sp-label { display:block; font-size:0.75rem; color:var(--muted); margin:12px 0 4px; font-weight:500; }
-      .sp-input, .sp-select { width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:6px; background:var(--bg); font-family:'Sarabun'; font-size:0.9rem; color:var(--ink); }
-      .sp-input:focus, .sp-select:focus { outline:2px solid var(--accent); outline-offset:1px; }
+      .sp-input, .sp-select { width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface); font-family:'Sarabun'; font-size:0.9rem; color:var(--ink); transition:border-color .15s ease, box-shadow .15s ease; }
+      .sp-input:hover, .sp-select:hover { border-color:var(--muted); }
+      .sp-input:focus, .sp-select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
       .sp-date-input { max-width:220px; }
 
-      .sp-btn-primary { display:inline-flex; align-items:center; gap:6px; background:var(--accent); color:#fff; border:none; padding:10px 18px; border-radius:6px; font-family:'Sarabun'; font-weight:600; font-size:0.88rem; cursor:pointer; }
-      .sp-btn-primary:hover { background:var(--accent-hover); }
-      .sp-icon-btn { background:transparent; border:none; color:var(--muted); cursor:pointer; padding:6px; border-radius:4px; }
-      .sp-icon-btn:hover { background:var(--bg); color:var(--accent2); }
+      .sp-btn-primary { display:inline-flex; align-items:center; gap:6px; background:var(--accent); color:#fff; border:none; padding:10px 18px; border-radius:8px; font-family:'Sarabun'; font-weight:600; font-size:0.88rem; cursor:pointer; box-shadow:0 1px 2px rgba(17,24,39,0.06); transition:background .15s ease, transform .12s ease, box-shadow .15s ease; }
+      .sp-btn-primary:hover { background:var(--accent-hover); transform:translateY(-1px); box-shadow:0 4px 10px rgba(17,24,39,0.14); }
+      .sp-btn-primary:active { transform:translateY(0); box-shadow:0 1px 2px rgba(17,24,39,0.08); }
+      .sp-icon-btn { background:transparent; border:none; color:var(--muted); cursor:pointer; padding:7px; border-radius:8px; transition:background .15s ease, color .15s ease; display:inline-flex; align-items:center; justify-content:center; }
+      .sp-icon-btn:hover { background:var(--accent2-bg); color:var(--accent2); }
 
-      .sp-card { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; margin-bottom:20px; overflow-x:auto; }
+      .sp-card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:20px; overflow-x:auto; box-shadow:var(--shadow-card); transition:box-shadow .18s ease, border-color .18s ease, transform .18s ease; }
       .sp-card-title { font-weight:600; margin-bottom:14px; font-size:0.95rem; }
       .sp-page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
       .sp-page-head h1 { margin:0; }
@@ -4033,9 +4043,11 @@ function GlobalStyle() {
       .sp-tag { font-size:0.72rem; padding:4px 10px; border-radius:20px; border:1px solid var(--tag-color); color:var(--tag-color); font-weight:600; white-space:nowrap; }
 
       .sp-table { width:100%; border-collapse:collapse; }
-      .sp-table th { text-align:left; font-size:0.72rem; color:var(--muted); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); }
-      .sp-table td { padding:10px; border-bottom:1px solid var(--line); font-size:0.87rem; vertical-align:middle; }
+      .sp-table th { text-align:left; font-size:0.7rem; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:10px 10px; border-bottom:1px solid var(--line); }
+      .sp-table td { padding:12px 10px; border-bottom:1px solid var(--line); font-size:0.87rem; vertical-align:middle; }
       .sp-table tr:last-child td { border-bottom:none; }
+      .sp-table tbody tr { transition:background .12s ease; }
+      .sp-table tbody tr:hover { background:var(--bg); }
 
       .sp-form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:4px 16px; align-items:end; }
       .sp-form-grid button { grid-column:span 2; margin-top:12px; justify-self:start; }
