@@ -1563,7 +1563,7 @@ function StudentProfile({ data, student, session, persist }) {
 
   const homeroom = (data.homeroomAssignments || []).find((h) => h.class === student.class);
   const advisorUser = homeroom ? (data.users || []).find((u) => u.username === homeroom.teacherUsername) : null;
-  const advisorName = advisorUser ? advisorUser.name : "อาจารย์ประจำสาขาวิชา";
+  const advisorName = advisorUser ? advisorUser.name : "ครูปิง สอนดี";
 
   function changePassword() {
     if (!pw) return;
@@ -1709,7 +1709,6 @@ function StudentProfile({ data, student, session, persist }) {
     </div>
   );
 }
-
   function changePassword() {
     if (!pw) return;
     persist({ ...data, users: data.users.map((u) => (u.username === session.username ? { ...u, password: pw } : u)) });
