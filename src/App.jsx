@@ -1125,7 +1125,7 @@ function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteCon
     { id: "analytics", label: "รายงานภาพรวม", desc: "สรุปคะแนนและการมาเรียนแต่ละห้อง", icon: TrendingUp },
     { id: "students", label: "จัดการนักเรียน", desc: "เพิ่ม/ลบ/ดูโปรไฟล์นักเรียน", icon: Users },
     { id: "attendance", label: "เช็คชื่อ", desc: "บันทึกการมาเรียนแยกรายห้อง", icon: CheckSquare },
-    { id: "grades", label: "จัดการเกรด", desc: "กรอกคะแนน + อัปโหลดใบเกรดรวม (ล็อกตามเทอม)", icon: BookOpen },
+    { id: "grades", label: "จัดการเกรด", desc: "กรอกคะแนนรายวิชา (ล็อกตามเทอม)", icon: BookOpen },
     { id: "assignments", label: "งาน/การบ้าน", desc: "สร้างงาน ตรวจ และให้คะแนน", icon: ClipboardList },
     { id: "materials", label: "สื่อการสอน", desc: "อัปโหลดเอกสารและสื่อการสอน", icon: FileText },
     { id: "quizzes", label: "คลังข้อสอบ", desc: "สร้างแบบทดสอบให้นักเรียนทำ", icon: HelpCircle },
@@ -1284,31 +1284,104 @@ function StudentDashboard({ data, student }) {
 }
 
 function StudentGrades({ data, student }) {
-  const grades = data.grades.filter((g) => g.studentId === student.id);
-  const gpa = grades.length ? (grades.reduce((s, g) => s + scoreToPoint(g.score), 0) / grades.length).toFixed(2) : "-";
+  const orderedTerms = [...data.terms].sort((a, b) => {
+    const yearA = data.academicYears.find((y) => y.id === a.academicYearId)?.label || "";
+    const yearB = data.academicYears.find((y) => y.id === b.academicYearId)?.label || "";
+    if (yearA !== yearB) return yearA.localeCompare(yearB);
+    return a.termNumber - b.termNumber;
+  });
+  const [selectedTermId, setSelectedTermId] = useState(data.terms.find((t) => t.isCurrent)?.id || orderedTerms[0]?.id || "");
+
+  const selectedTerm = data.terms.find((t) => t.id === selectedTermId) || orderedTerms[0];
+  const selectedYear = selectedTerm ? data.academicYears.find((y) => y.id === selectedTerm.academicYearId) : null;
+  const selectedIndex = orderedTerms.findIndex((t) => t.id === selectedTerm?.id);
+
+  const allMyGrades = data.grades.filter((g) => g.studentId === student.id);
+  const termGrades = selectedTerm ? allMyGrades.filter((g) => g.termId === selectedTerm.id) : [];
+  const gpa = termGrades.length
+    ? (termGrades.reduce((s, g) => s + scoreToPoint(g.score), 0) / termGrades.length).toFixed(2)
+    : "-";
+
+  // GPAX: cumulative average across every term up to and including the one selected,
+  // using chronological term order (by academic year, then term number) — not array order.
+  const cumulativeTermIds = new Set(orderedTerms.slice(0, selectedIndex + 1).map((t) => t.id));
+  const cumulativeGrades = allMyGrades.filter((g) => cumulativeTermIds.has(g.termId));
+  const gpax = cumulativeGrades.length
+    ? (cumulativeGrades.reduce((s, g) => s + scoreToPoint(g.score), 0) / cumulativeGrades.length).toFixed(2)
+    : "-";
+
+  const today = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+
   return (
     <div>
-      <div className="sp-page-head"><h1>ผลการเรียน</h1><Stamp color="var(--accent)">GPA {gpa}</Stamp></div>
-      {student.gradeReportUrl && (
-        <div className="sp-card">
-          <div className="sp-card-title">ใบเกรดจากครู</div>
-          <img src={student.gradeReportUrl} alt="ใบเกรด" className="sp-grade-report-img" />
+      <div className="sp-page-head sp-no-print">
+        <h1>ผลการเรียน</h1>
+        <div className="sp-inline-form" style={{ gap: "10px" }}>
+          <select className="sp-select" style={{ width: "auto" }} value={selectedTermId} onChange={(e) => setSelectedTermId(e.target.value)}>
+            {orderedTerms.length === 0 && <option value="">- ไม่มีข้อมูลเทอม -</option>}
+            {orderedTerms.map((t) => {
+              const y = data.academicYears.find((yy) => yy.id === t.academicYearId);
+              return <option key={t.id} value={t.id}>ปีการศึกษา {y?.label} · เทอม {t.termNumber}</option>;
+            })}
+          </select>
+          <button className="sp-btn-primary" type="button" onClick={() => window.print()}><FileText size={16} /> พิมพ์ / บันทึกใบเกรด (PDF)</button>
         </div>
-      )}
-      <div className="sp-card">
-        <table className="sp-table">
-          <thead><tr><th>วิชา</th><th>เทอม</th><th>คะแนน</th><th>ระดับคะแนน</th></tr></thead>
+      </div>
+
+      <div className="sp-grade-report-doc">
+        <div className="sp-report-header">
+          <img src={LOGO} alt="ตราวิทยาลัย" className="sp-report-seal" />
+          <div>
+            <div className="sp-report-college-name">{data.siteContent?.schoolName || "วิทยาลัย"}</div>
+            <div className="sp-report-subtitle">ใบรายงานผลการเรียน (Grade Report)</div>
+            <div className="sp-report-subtitle">ปีการศึกษา {selectedYear?.label || "-"} · เทอม {selectedTerm?.termNumber || "-"}</div>
+          </div>
+        </div>
+
+        <div className="sp-report-student-info">
+          <div><span className="sp-report-label">ชื่อ-นามสกุล:</span> {student.name}</div>
+          <div><span className="sp-report-label">รหัสนักเรียน:</span> {student.studentCode || student.id.toUpperCase()}</div>
+          <div><span className="sp-report-label">ชั้น:</span> {student.class}</div>
+          <div><span className="sp-report-label">เลขที่:</span> {student.number}</div>
+        </div>
+
+        <table className="sp-report-table">
+          <thead><tr><th>วิชา</th><th>คะแนน</th><th>ระดับคะแนน</th></tr></thead>
           <tbody>
-            {grades.map((g) => (
+            {termGrades.length === 0 ? (
+              <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)" }}>ยังไม่มีข้อมูลคะแนนในภาคเรียนนี้</td></tr>
+            ) : termGrades.map((g) => (
               <tr key={g.id}>
                 <td>{g.subject}</td>
-                <td>{g.term}</td>
                 <td>{g.score}/100</td>
-                <td><Stamp size={44} color={scoreToPoint(g.score) >= 3 ? "var(--accent)" : scoreToPoint(g.score) >= 2 ? "#9A6A00" : "var(--accent2)"}>{scoreToPoint(g.score).toFixed(1)}</Stamp></td>
+                <td>{scoreToPoint(g.score).toFixed(1)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        <div className="sp-report-summary">
+          <div className="sp-report-summary-box">
+            <div className="sp-report-summary-label">GPA ภาคเรียนนี้</div>
+            <div className="sp-report-summary-value">{gpa}</div>
+          </div>
+          <div className="sp-report-summary-box">
+            <div className="sp-report-summary-label">GPAX สะสม</div>
+            <div className="sp-report-summary-value">{gpax}</div>
+          </div>
+        </div>
+
+        <div className="sp-report-signatures">
+          <div className="sp-report-sign-line">
+            <div className="line" />
+            <div>ครูประจำชั้น</div>
+          </div>
+          <div className="sp-report-sign-line">
+            <div className="line" />
+            <div>นายทะเบียน</div>
+          </div>
+        </div>
+        <div className="sp-report-date">ออกรายงาน ณ วันที่ {today}</div>
       </div>
     </div>
   );
@@ -2159,8 +2232,6 @@ function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate, 
   const [newPassword, setNewPassword] = useState("");
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [pwMsg, setPwMsg] = useState("");
-  const [uploadingReport, setUploadingReport] = useState(false);
-  const [reportError, setReportError] = useState("");
 
   const grades = data.grades.filter((g) => g.studentId === student.id);
   const gpa = grades.length ? (grades.reduce((s, g) => s + scoreToPoint(g.score), 0) / grades.length).toFixed(2) : "-";
@@ -2188,27 +2259,6 @@ function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate, 
     setNewPassword("");
     setPwMsg("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
     setTimeout(() => setPwMsg(""), 2500);
-  }
-
-  async function handleReportUpload(e) {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { setReportError("กรุณาเลือกไฟล์รูปภาพเท่านั้น (jpg, png)"); return; }
-    setReportError("");
-    setUploadingReport(true);
-    try {
-      const uploaded = await sbUploadFile(file);
-      await persist({ ...data, students: data.students.map((s) => (s.id === student.id ? { ...s, gradeReportUrl: uploaded.fileUrl } : s)) });
-    } catch (err) {
-      setReportError(err.message || "อัปโหลดรูปไม่สำเร็จ");
-    } finally {
-      setUploadingReport(false);
-    }
-  }
-
-  function removeReport() {
-    persist({ ...data, students: data.students.map((s) => (s.id === student.id ? { ...s, gradeReportUrl: null } : s)) });
   }
 
   return (
@@ -2265,28 +2315,6 @@ function TeacherStudentProfile({ data, student, persist, onBack, onImpersonate, 
           {pwMsg && <div className="sp-success">{pwMsg}</div>}
         </div>
       )}
-
-      <div className="sp-card">
-        <div className="sp-card-title">รูปใบเกรด (แสดงให้นักเรียนเห็นโดยตรง ไม่ต้องดาวน์โหลดไฟล์)</div>
-        {student.gradeReportUrl ? (
-          <div className="sp-grade-report-preview">
-            <img src={student.gradeReportUrl} alt="ใบเกรด" className="sp-grade-report-img" />
-            <div className="sp-grade-report-actions">
-              <label className="sp-upload-btn">
-                <Camera size={14} /> {uploadingReport ? "กำลังอัปโหลด..." : "เปลี่ยนรูป"}
-                <input type="file" accept="image/*" style={{ display: "none" }} disabled={uploadingReport} onChange={handleReportUpload} />
-              </label>
-              <button className="sp-icon-btn" type="button" onClick={removeReport} title="ลบรูปใบเกรด"><Trash2 size={16} /></button>
-            </div>
-          </div>
-        ) : (
-          <label className="sp-upload-btn">
-            <Camera size={14} /> {uploadingReport ? "กำลังอัปโหลด..." : "อัปโหลดรูปใบเกรด"}
-            <input type="file" accept="image/*" style={{ display: "none" }} disabled={uploadingReport} onChange={handleReportUpload} />
-          </label>
-        )}
-        {reportError && <div className="sp-error"><AlertCircle size={14} /> {reportError}</div>}
-      </div>
 
       <div className="sp-stats-grid">
         <div className="sp-card sp-stat"><div className="sp-stat-label">เกรดเฉลี่ย</div><div className="sp-stat-value">{gpa}</div></div>
@@ -2556,24 +2584,17 @@ function TeacherAttendance({ data, persist }) {
 function TeacherGradeManagement({ data, persist, session }) {
   const [yearId, setYearId] = useState(data.academicYears.find((y) => y.isCurrent)?.id || data.academicYears[0]?.id);
   const [termId, setTermId] = useState(data.terms.find((t) => t.isCurrent)?.id || data.terms[0]?.id);
-  const [tab, setTab] = useState("scores");
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [scoreInputs, setScoreInputs] = useState({});
   const [reqReason, setReqReason] = useState("");
   const [reqSent, setReqSent] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [uploadError, setUploadError] = useState("");
-  const [uploading, setUploading] = useState(false);
 
   const myAssignments = data.subjectTeacherAssignments.filter((a) => a.teacherUsername === session.username && a.termId === termId);
   const activeAssignment = selectedAssignment ? myAssignments.find((a) => a.id === selectedAssignment) : myAssignments[0];
   const term = data.terms.find((t) => t.id === termId);
   const isLocked = term?.status === "closed";
 
-  const myHomeroom = (data.homeroomAssignments || []).find((h) => h.teacherUsername === session.username);
-
   const classStudents = activeAssignment ? data.students.filter((s) => s.class === activeAssignment.class) : [];
-  const homeroomStudents = myHomeroom ? data.students.filter((s) => s.class === myHomeroom.class) : [];
 
   function scoreKey(studentId) { return `${studentId}_${activeAssignment?.subject}_${termId}`; }
 
@@ -2612,32 +2633,6 @@ function TeacherGradeManagement({ data, persist, session }) {
     setTimeout(() => setReqSent(false), 2500);
   }
 
-  async function handleReportCardUpload(e) {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!file || !selectedStudentId) return;
-    if (!/^(image\/|application\/pdf)/.test(file.type)) { setUploadError("รองรับเฉพาะไฟล์ PDF, JPG, PNG เท่านั้น"); return; }
-    if (file.size > 5 * 1024 * 1024) { setUploadError("ไฟล์ใหญ่เกินไป (จำกัดไม่เกิน 5MB)"); return; }
-    setUploadError("");
-    setUploading(true);
-    try {
-      const uploaded = await sbUploadFile(file);
-      const existing = (data.reportCards || []).find((r) => r.studentId === selectedStudentId && r.termId === termId);
-      const record = { studentId: selectedStudentId, termId, fileUrl: uploaded.fileUrl, fileType: file.type, fileSize: file.size, uploadedBy: session.username, uploadedAt: new Date().toISOString().slice(0, 16).replace("T", " ") };
-      const nextReportCards = existing
-        ? data.reportCards.map((r) => (r === existing ? { ...r, ...record } : r))
-        : [...(data.reportCards || []), { id: genId("rc"), ...record }];
-      const withLog = withAudit({ ...data, reportCards: nextReportCards }, session.username, "report_card.upload", "report_card", selectedStudentId, existing ? { fileUrl: existing.fileUrl } : null, { fileUrl: uploaded.fileUrl });
-      await persist(withLog);
-    } catch (err) {
-      setUploadError(err.message || "อัปโหลดไม่สำเร็จ");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  const selectedReportCard = selectedStudentId ? (data.reportCards || []).find((r) => r.studentId === selectedStudentId && r.termId === termId) : null;
-
   return (
     <div>
       <h1>จัดการเกรด</h1>
@@ -2649,7 +2644,7 @@ function TeacherGradeManagement({ data, persist, session }) {
           <select className="sp-select" value={termId} onChange={(e) => { setTermId(e.target.value); setSelectedAssignment(null); }}>
             {data.terms.filter((t) => t.academicYearId === yearId).map((t) => <option key={t.id} value={t.id}>เทอม {t.termNumber}</option>)}
           </select>
-          {tab === "scores" && myAssignments.length > 0 && (
+          {myAssignments.length > 0 && (
             <select className="sp-select" value={activeAssignment?.id || ""} onChange={(e) => setSelectedAssignment(e.target.value)}>
               {myAssignments.map((a) => <option key={a.id} value={a.id}>{a.subject} · {a.class}</option>)}
             </select>
@@ -2659,81 +2654,39 @@ function TeacherGradeManagement({ data, persist, session }) {
       </div>
 
       <div className="sp-card">
-        <div className="sp-gm-tabs">
-          <button className={"sp-gm-tab" + (tab === "scores" ? " active" : "")} onClick={() => setTab("scores")}>กรอกคะแนนรายวิชา</button>
-          <button className={"sp-gm-tab" + (tab === "reportcard" ? " active" : "")} onClick={() => setTab("reportcard")}>อัปโหลดใบเกรดรวม</button>
-        </div>
-
-        {tab === "scores" && (
-          myAssignments.length === 0 ? (
-            <div className="sp-empty">คุณยังไม่ได้รับมอบหมายให้สอนวิชาใดในเทอมนี้</div>
-          ) : (
-            <div>
-              <table className="sp-table">
-                <thead><tr><th>นักเรียน</th><th>คะแนน (เต็ม 100)</th><th>เกรด</th></tr></thead>
-                <tbody>
-                  {classStudents.map((s) => {
-                    const g = getGrade(s.id);
-                    const key = scoreKey(s.id);
-                    const val = scoreInputs[key] !== undefined ? scoreInputs[key] : (g ? g.score : "");
-                    return (
-                      <tr key={s.id}>
-                        <td>{s.name}</td>
-                        <td><input className="sp-input sp-grade-input" type="number" min="0" max="100" disabled={isLocked} value={val} onChange={(e) => setScoreInputs((prev) => ({ ...prev, [key]: e.target.value }))} /></td>
-                        <td>{g ? scoreToPoint(g.score).toFixed(1) : "-"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {!isLocked ? (
-                <button className="sp-btn-primary" style={{ marginTop: "14px" }} type="button" onClick={saveScores}>บันทึกคะแนน</button>
-              ) : (
-                <div style={{ marginTop: "14px" }}>
-                  <div className="sp-inline-form">
-                    <input className="sp-input" placeholder="เหตุผลที่ขอแก้ไข (ไม่บังคับ)" value={reqReason} onChange={(e) => setReqReason(e.target.value)} />
-                    <button className="sp-btn-primary sp-btn-danger" type="button" onClick={submitUnlockRequest}>ยื่นคำร้องขอแก้ไขเกรดต่อ Admin</button>
-                  </div>
-                  {reqSent && <div className="sp-success">ส่งคำร้องแล้ว รอแอดมินอนุมัติ</div>}
+        {myAssignments.length === 0 ? (
+          <div className="sp-empty">คุณยังไม่ได้รับมอบหมายให้สอนวิชาใดในเทอมนี้</div>
+        ) : (
+          <div>
+            <table className="sp-table">
+              <thead><tr><th>นักเรียน</th><th>คะแนน (เต็ม 100)</th><th>เกรด</th></tr></thead>
+              <tbody>
+                {classStudents.map((s) => {
+                  const g = getGrade(s.id);
+                  const key = scoreKey(s.id);
+                  const val = scoreInputs[key] !== undefined ? scoreInputs[key] : (g ? g.score : "");
+                  return (
+                    <tr key={s.id}>
+                      <td>{s.name}</td>
+                      <td><input className="sp-input sp-grade-input" type="number" min="0" max="100" disabled={isLocked} value={val} onChange={(e) => setScoreInputs((prev) => ({ ...prev, [key]: e.target.value }))} /></td>
+                      <td>{g ? scoreToPoint(g.score).toFixed(1) : "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!isLocked ? (
+              <button className="sp-btn-primary" style={{ marginTop: "14px" }} type="button" onClick={saveScores}>บันทึกคะแนน</button>
+            ) : (
+              <div style={{ marginTop: "14px" }}>
+                <div className="sp-inline-form">
+                  <input className="sp-input" placeholder="เหตุผลที่ขอแก้ไข (ไม่บังคับ)" value={reqReason} onChange={(e) => setReqReason(e.target.value)} />
+                  <button className="sp-btn-primary sp-btn-danger" type="button" onClick={submitUnlockRequest}>ยื่นคำร้องขอแก้ไขเกรดต่อ Admin</button>
                 </div>
-              )}
-            </div>
-          )
-        )}
-
-        {tab === "reportcard" && (
-          !myHomeroom ? (
-            <div className="sp-empty">คุณไม่ได้เป็นครูประจำชั้นของห้องใด จึงไม่มีสิทธิ์อัปโหลดใบเกรดรวม</div>
-          ) : (
-            <div className="sp-gm-upload-panel">
-              <div>
-                <label className="sp-label">เลือกนักเรียน (ห้อง {myHomeroom.class})</label>
-                <select className="sp-select" value={selectedStudentId || ""} onChange={(e) => { setSelectedStudentId(e.target.value); setUploadError(""); }}>
-                  <option value="">- เลือกนักเรียน -</option>
-                  {homeroomStudents.map((s) => <option key={s.id} value={s.id}>{s.name} (เลขที่ {s.number})</option>)}
-                </select>
-                {selectedStudentId && (
-                  <label className="sp-upload-btn" style={{ marginTop: "12px" }}>
-                    <Paperclip size={14} /> {uploading ? "กำลังอัปโหลด..." : selectedReportCard ? "เปลี่ยนไฟล์ใบเกรด" : "อัปโหลดไฟล์ใบเกรด"}
-                    <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} disabled={uploading} onChange={handleReportCardUpload} />
-                  </label>
-                )}
-                <div className="sp-hint-note">รองรับ PDF / JPG / PNG ไม่เกิน 5MB</div>
-                {uploadError && <div className="sp-error"><AlertCircle size={14} /> {uploadError}</div>}
+                {reqSent && <div className="sp-success">ส่งคำร้องแล้ว รอแอดมินอนุมัติ</div>}
               </div>
-              <div className="sp-gm-preview">
-                {!selectedStudentId ? (
-                  <div className="sp-empty">เลือกนักเรียนเพื่อดู/อัปโหลดใบเกรด</div>
-                ) : !selectedReportCard ? (
-                  <div className="sp-empty">ยังไม่มีไฟล์ใบเกรดของนักเรียนคนนี้ในเทอมนี้</div>
-                ) : selectedReportCard.fileType === "application/pdf" ? (
-                  <iframe title="ใบเกรด" src={selectedReportCard.fileUrl} className="sp-gm-preview-frame" />
-                ) : (
-                  <img src={selectedReportCard.fileUrl} alt="ใบเกรด" className="sp-gm-preview-img" />
-                )}
-              </div>
-            </div>
-          )
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -3949,9 +3902,35 @@ function GlobalStyle() {
       .sp-confirm-delete-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--accent2-bg); border:1px solid var(--accent2); border-radius:8px; padding:12px; color:var(--accent2); font-size:0.85rem; }
       .sp-confirm-delete-row span { flex:1 1 100%; min-width:200px; }
       .sp-confirm-delete-actions { display:flex; align-items:center; gap:14px; margin-left:auto; }
-      .sp-grade-report-img { max-width:100%; border-radius:8px; border:1px solid var(--line); display:block; }
-      .sp-grade-report-preview { display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
-      .sp-grade-report-actions { display:flex; gap:8px; align-items:center; }
+      .sp-grade-report-doc { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:40px; box-shadow:var(--shadow-card); max-width:800px; margin:0 auto 24px; }
+      .sp-report-header { display:flex; align-items:center; gap:18px; border-bottom:3px double var(--ink); padding-bottom:18px; margin-bottom:22px; }
+      .sp-report-seal { width:72px; height:72px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+      .sp-report-college-name { font-family:'Kanit'; font-weight:700; font-size:1.15rem; }
+      .sp-report-subtitle { font-size:0.85rem; color:var(--muted); margin-top:2px; }
+      .sp-report-student-info { display:grid; grid-template-columns:1fr 1fr; gap:8px 24px; margin-bottom:24px; font-size:0.92rem; padding:14px 16px; background:var(--bg); border-radius:8px; }
+      .sp-report-label { color:var(--muted); margin-right:4px; }
+      .sp-report-table { width:100%; border-collapse:collapse; margin-bottom:28px; }
+      .sp-report-table th, .sp-report-table td { border:1px solid var(--line); padding:9px 12px; font-size:0.88rem; text-align:left; }
+      .sp-report-table th { background:var(--bg); font-weight:700; }
+      .sp-report-table td:nth-child(2), .sp-report-table td:nth-child(3),
+      .sp-report-table th:nth-child(2), .sp-report-table th:nth-child(3) { text-align:center; width:110px; }
+      .sp-report-summary { display:flex; gap:20px; justify-content:flex-end; margin-bottom:56px; }
+      .sp-report-summary-box { text-align:center; border:2px solid var(--accent); border-radius:10px; padding:12px 24px; min-width:120px; }
+      .sp-report-summary-label { font-size:0.72rem; color:var(--muted); margin-bottom:4px; }
+      .sp-report-summary-value { font-family:'IBM Plex Mono'; font-weight:700; font-size:1.4rem; color:var(--accent); }
+      .sp-report-signatures { display:flex; justify-content:space-around; margin-top:20px; text-align:center; font-size:0.85rem; }
+      .sp-report-sign-line .line { border-top:1px solid var(--ink); width:200px; margin:0 auto 10px; padding-top:44px; }
+      .sp-report-date { text-align:right; font-size:0.78rem; color:var(--muted); margin-top:24px; }
+
+      @media print {
+        .sp-sidebar-desktop, .sp-mobile-topbar, .sp-bell-wrap, .sp-navmenu-panel, .sp-about-panel,
+        .sp-panel-backdrop, .sp-refresh-toast, .sp-admin-return-bar, .sp-no-print { display:none !important; }
+        .sp-app { display:block !important; background:#fff !important; min-height:0 !important; }
+        .sp-main { padding:0 !important; overflow:visible !important; }
+        .sp-grade-report-doc { box-shadow:none !important; border:none !important; border-radius:0 !important; max-width:100% !important; margin:0 !important; }
+        body { background:#fff !important; }
+        @page { size:A4; margin:15mm; }
+      }
       .sp-gm-header { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
       .sp-lock-badge { margin-left:auto; padding:6px 14px; border-radius:20px; font-size:0.78rem; font-weight:600; }
       .sp-lock-badge.open { background:#DCEFE1; color:#1F7A3E; }
