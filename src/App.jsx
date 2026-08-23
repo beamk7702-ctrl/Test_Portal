@@ -257,16 +257,24 @@ function buildAttendanceSeed() {
 }
 
 const SEED = {
-  academicYears: [{ id: "ay1", label: "2569", isCurrent: true }],
-  terms: [
-    { id: "t1", academicYearId: "ay1", termNumber: 1, isCurrent: true, status: "open" },
-    { id: "t2", academicYearId: "ay1", termNumber: 2, isCurrent: false, status: "open" },
+  academicYears: [
+    { id: "ay1", label: "2568", isCurrent: false },
+    { id: "ay2", label: "2569", isCurrent: true },
   ],
-  homeroomAssignments: [{ class: "ปวส.2/3", teacherUsername: "kruping" }],
+  terms: [
+    { id: "t1", academicYearId: "ay2", termNumber: 1, isCurrent: false, status: "closed" },
+    { id: "t2", academicYearId: "ay2", termNumber: 2, isCurrent: true, status: "open" },
+  ],
+  homeroomAssignments: [
+    { class: "ปวส.2/3", teacherUsername: "kruping" },
+  ],
   subjectTeacherAssignments: [
     { id: "sta1", teacherUsername: "kruping", subject: "วิเคราะห์และออกแบบระบบเชิงวัตถุ", class: "ปวส.2/3", termId: "t1" },
     { id: "sta2", teacherUsername: "kruping", subject: "การเป็นผู้ประกอบการ", class: "ปวส.2/3", termId: "t1" },
-    { id: "sta3", teacherUsername: "kruping", subject: "เทคนิคการนำเสนอ", class: "ปวช.1/1", termId: "t1" },
+    { id: "sta3", teacherUsername: "kruping", subject: "โครงงานเทคโนโลยีธุรกิจดิจิทัล 1", class: "ปวส.2/3", termId: "t1" },
+    { id: "sta4", teacherUsername: "kruping", subject: "การพัฒนาเว็บแอปพลิเคชัน", class: "ปวส.2/3", termId: "t2" },
+    { id: "sta5", teacherUsername: "kruping", subject: "ความมั่นคงปลอดภัยไซเบอร์", class: "ปวส.2/3", termId: "t2" },
+    { id: "sta6", teacherUsername: "kruping", subject: "โครงงานเทคโนโลยีธุรกิจดิจิทัล 2", class: "ปวส.2/3", termId: "t2" },
   ],
   reportCards: [],
   gradeUnlockRequests: [],
@@ -278,45 +286,49 @@ const SEED = {
     { username: "kruping", password: "1234", role: "teacher", name: "ครูปิง สอนดี", email: "kruping@btad.ac.th" },
     { username: "std01", password: "1234", role: "student", studentId: "s1", email: "std01@btad.ac.th" },
     { username: "std02", password: "1234", role: "student", studentId: "s2", email: "std02@btad.ac.th" },
-    { username: "std03", password: "1234", role: "student", studentId: "s3", email: "std03@btad.ac.th" },
-    { username: "std04", password: "1234", role: "student", studentId: "s4", email: "std04@btad.ac.th" },
-    { username: "peeranat_p", password: "1234", role: "student", studentId: "s5", email: "peeranat.p@gmail.com" },
-    { username: "suchada.k", password: "1234", role: "student", studentId: "s6", email: "suchada.kaewsri@gmail.com" },
   ],
   students: [
-    { id: "s1", name: "ณัฐวุฒิ ใจดี", class: "ปวส.2/3", number: 1, studentCode: "6621230001" },
-    { id: "s2", name: "พิมพ์ชนก แสงทอง", class: "ปวส.2/3", number: 2, studentCode: "6621230002" },
-    { id: "s3", name: "ธนกฤต วงศ์สุข", class: "ปวส.2/3", number: 3, studentCode: "6621230003" },
-    { id: "s4", name: "กัญญาณัฐ ศรีสุข", class: "ปวส.2/3", number: 4, studentCode: "6621230004" },
-    { id: "s5", name: "พีรนัฐ พูนสวัสดิ์", class: "ปวส.2/3", number: 5, studentCode: "6621230005" },
-    { id: "s6", name: "สุชาดา แก้วศรี", class: "ปวส.2/3", number: 6, studentCode: "6621230006" },
+    { id: "s1", name: "นาย ณัฐชา ดีเวช", class: "ปวส.2/3", number: 1, studentCode: "6731280001" },
+    { id: "s2", name: "นางสาว พิมพ์ชนก แสงทอง", class: "ปวส.2/3", number: 2, studentCode: "6731280002" },
   ],
   grades: [
-    { id: "g1", studentId: "s1", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 78, termId: "t1" },
-    { id: "g2", studentId: "s1", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 85, termId: "t1" },
-    { id: "g3", studentId: "s1", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 72, termId: "t1" },
-    { id: "g4", studentId: "s1", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 90, termId: "t1" },
-    { id: "g5", studentId: "s1", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 88, termId: "t1" },
-    { id: "g6", studentId: "s2", subject: "คณิตศาสตร์", term: "เทอม 1/2569", score: 92, termId: "t1" },
-    { id: "g7", studentId: "s2", subject: "ภาษาอังกฤษ", term: "เทอม 1/2569", score: 80, termId: "t1" },
-    { id: "g8", studentId: "s2", subject: "วิทยาศาสตร์", term: "เทอม 1/2569", score: 88, termId: "t1" },
-    { id: "g9", studentId: "s2", subject: "ภาษาไทย", term: "เทอม 1/2569", score: 76, termId: "t1" },
-    { id: "g10", studentId: "s2", subject: "สังคมศึกษา", term: "เทอม 1/2569", score: 82, termId: "t1" },
+    // --- เกรด เทอม 1/2569 ของ s1 (GPA = 3.70) ---
+    { id: "g1", studentId: "s1", subject: "วิเคราะห์และออกแบบระบบเชิงวัตถุ", term: "เทอม 1/2569", score: 85, termId: "t1" }, // เกรด 4.0
+    { id: "g2", studentId: "s1", subject: "การเป็นผู้ประกอบการ", term: "เทอม 1/2569", score: 76, termId: "t1" },          // เกรด 3.5
+    { id: "g3", studentId: "s1", subject: "การผลิตสื่อดิจิทัลเพื่อธุรกิจ", term: "เทอม 1/2569", score: 88, termId: "t1" },     // เกรด 4.0
+    { id: "g4", studentId: "s1", subject: "คณิตศาสตร์และสถิติพื้นฐานอาชีพ", term: "เทอม 1/2569", score: 72, termId: "t1" }, // เกรด 3.0
+    { id: "g5", studentId: "s1", subject: "โครงงานเทคโนโลยีธุรกิจดิจิทัล 1", term: "เทอม 1/2569", score: 92, termId: "t1" }, // เกรด 4.0
+
+    // --- เกรด เทอม 2/2569 ของ s1 (GPA = 3.90, GPAX รวม = 3.80) ---
+    { id: "g6", studentId: "s1", subject: "การพัฒนาเว็บแอปพลิเคชัน", term: "เทอม 2/2569", score: 94, termId: "t2" },       // เกรด 4.0
+    { id: "g7", studentId: "s1", subject: "ความมั่นคงปลอดภัยไซเบอร์", term: "เทอม 2/2569", score: 82, termId: "t2" },        // เกรด 4.0
+    { id: "g8", studentId: "s1", subject: "การตลาดดิจิทัลขั้นสูง", term: "เทอม 2/2569", score: 78, termId: "t2" },            // เกรด 3.5
+    { id: "g9", studentId: "s1", subject: "ภาษาอังกฤษเพื่องานดิจิทัล", term: "เทอม 2/2569", score: 85, termId: "t2" },        // เกรด 4.0
+    { id: "g10", studentId: "s1", subject: "โครงงานเทคโนโลยีธุรกิจดิจิทัล 2", term: "เทอม 2/2569", score: 95, termId: "t2" }, // เกรด 4.0
+
+    // --- เกรด เทอม 1/2569 ของ s2 ---
+    { id: "g11", studentId: "s2", subject: "วิเคราะห์และออกแบบระบบเชิงวัตถุ", term: "เทอม 1/2569", score: 90, termId: "t1" },
+    { id: "g12", studentId: "s2", subject: "การเป็นผู้ประกอบการ", term: "เทอม 1/2569", score: 82, termId: "t1" },
+    { id: "g13", studentId: "s2", subject: "การผลิตสื่อดิจิทัลเพื่อธุรกิจ", term: "เทอม 1/2569", score: 85, termId: "t1" },
+    { id: "g14", studentId: "s2", subject: "คณิตศาสตร์และสถิติพื้นฐานอาชีพ", term: "เทอม 1/2569", score: 78, termId: "t1" },
+    { id: "g15", studentId: "s2", subject: "โครงงานเทคโนโลยีธุรกิจดิจิทัล 1", term: "เทอม 1/2569", score: 91, termId: "t1" },
   ],
-  attendance: buildAttendanceSeed(),
+  attendance: [
+    { id: "at1", studentId: "s1", date: "2026-08-03", status: "present" },
+    { id: "at2", studentId: "s1", date: "2026-08-04", status: "present" },
+    { id: "at3", studentId: "s1", date: "2026-08-05", status: "present" },
+    { id: "at4", studentId: "s1", date: "2026-08-06", status: "present" },
+    { id: "at5", studentId: "s1", date: "2026-08-07", status: "present" },
+  ],
   assignments: [
-    { id: "a1", title: "ส่งรายงานการวิเคราะห์ระบบเชิงวัตถุ", subject: "วิเคราะห์และออกแบบระบบเชิงวัตถุ", class: "ปวส.2/3", dueDate: "2026-08-01", description: "ส่งรูปเล่มรายงานพร้อม Use Case Diagram" },
-    { id: "a2", title: "แบบฝึกหัดคณิตศาสตร์และสถิติ บทที่ 4", subject: "คณิตศาสตร์และสถิติพื้นฐานอาชีพ", class: "ปวส.2/3", dueDate: "2026-08-02", description: "ทำแบบฝึกหัดข้อ 1-20 หน้า 88" },
-    { id: "a3", title: "คลิปนำเสนอสินค้า (เทคนิคการนำเสนอ)", subject: "เทคนิคการนำเสนอ", class: "ปวส.2/3", dueDate: "2026-08-05", description: "อัดคลิปนำเสนอสินค้าสมมติ ความยาว 3-5 นาที" },
+    { id: "a1", title: "ส่งรายงานและเดโมเว็บแอปพลิเคชัน", subject: "การพัฒนาเว็บแอปพลิเคชัน", class: "ปวส.2/3", dueDate: "2026-09-01", description: "แนบลิงก์ GitHub และ Vercel URL สำหรับตรวจงาน" },
   ],
   events: [
-    { id: "e1", title: "วันเฉลิมพระชนมพรรษา ร.10", date: "2026-07-28", type: "holiday" },
-    { id: "e2", title: "วันแม่แห่งชาติ", date: "2026-08-12", type: "holiday" },
-    { id: "e3", title: "กีฬาสีประจำปี", date: "2026-08-20", type: "activity" },
-    { id: "e4", title: "สอบกลางภาค", date: "2026-09-01", type: "exam" },
+    { id: "e1", title: "สอบปลายภาค ภาคเรียนที่ 1/2569", date: "2026-09-15", type: "exam" },
+    { id: "e2", title: "นำเสนอโครงงานวิชาชีพ 2", date: "2026-09-22", type: "activity" },
   ],
   announcements: [
-    { id: "n1", title: "แจ้งเตรียมชุดกีฬาสี", body: "ให้นักเรียนทุกคนเตรียมชุดกีฬาสีของบ้านตนเองมาในวันที่ 20 ส.ค.", date: "2026-07-25" },
+    { id: "n1", title: "ประกาศกำหนดการพิมพ์ใบรายงานผลการเรียน", body: "นักศึกษาที่ชำระค่าธรรมเนียมเรียบร้อยสามารถดาวน์โหลดใบเกรด PDF ได้ผ่านระบบ", date: "2026-08-20" },
   ],
   timetables: [],
   materials: [],
@@ -326,8 +338,12 @@ const SEED = {
   leaveRequests: [],
   messages: [],
   assignmentComments: [],
-  behaviorLogs: [],
-  portfolioEntries: [],
+  behaviorLogs: [
+    { id: "b1", studentId: "s1", points: 10, reason: "เป็นตัวแทนแข่งขันทักษะวิชาชีพการพัฒนาเว็บระดับภาค", date: "2026-08-10" },
+  ],
+  portfolioEntries: [
+    { id: "p1", studentId: "s1", activity: "จัดทำระบบสมุดพกออนไลน์ให้วิทยาลัย", hours: 30, date: "2026-08-15" },
+  ],
   classes: [
     "ปวช.1/1", "ปวช.1/2", "ปวช.1/3", "ปวช.2/1", "ปวช.2/2", "ปวช.2/3",
     "ปวช.3/1", "ปวช.3/2", "ปวช.3/3", "ปวส.1/1", "ปวส.1/2", "ปวส.1/3",
@@ -335,20 +351,12 @@ const SEED = {
   ],
   siteContent: {
     schoolName: "วิทยาลัยอาชีวศึกษาเทคนิคบริหารธุรกิจกรุงเทพ",
-    tagline: "ระบบสมุดพกออนไลน์ · ติดตามผลการเรียนและกิจกรรมนักเรียน",
+    tagline: "ระบบสมุดพกออนไลน์ · ติดตามผลการเรียนและกิจกรรมนักศึกษา",
     projectName: "Web-Based Student Grade Reporting System",
     appShortName: "B.T.AD",
-    aboutDescription: "ระบบสมุดพกออนไลน์สำหรับติดตามผลการเรียน การเข้าเรียน งานที่มอบหมาย ตารางเรียน และกิจกรรมของนักเรียน",
+    aboutDescription: "ระบบสมุดพกออนไลน์สำหรับติดตามผลการเรียน การเข้าเรียน งานที่มอบหมาย ตารางเรียน และกิจกรรมของนักศึกษา",
   },
 };
-
-function Stamp({ children, color = "var(--accent)", size = 56 }) {
-  return (
-    <div className="sp-stamp" style={{ "--stamp-color": color, width: size, height: size, fontSize: size * 0.24 }}>
-      {children}
-    </div>
-  );
-}
 
 function Avatar({ name, size = 64, avatarDataUrl }) {
   if (avatarDataUrl) {
