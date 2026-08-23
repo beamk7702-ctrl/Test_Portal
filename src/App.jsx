@@ -6,7 +6,7 @@ import {
   Award, Inbox, TrendingUp, Check, XCircle, Paperclip, Shield, Camera, ArrowLeft, GripVertical, Menu, Info, CalendarClock, MessageCircleWarning, Eye, EyeOff, RefreshCw, Bell, Download, Upload
 } from "lucide-react";
 
-const STORAGE_KEY = "smudphok:data";
+const STORAGE_KEY = "smudphok:data_v2";
 const SUPABASE_URL = "https://bgkvofxmvujqcbxrkxya.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJna3ZvZnhtdnVqcWNieHJreHlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNjAxNjMsImV4cCI6MjEwMDczNjE2M30.4kWPT6fVvGT7bT4FHdTmwxefBTZpNNX60fYkpH-98cM";
 
