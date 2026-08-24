@@ -1545,385 +1545,46 @@ function StudentProfile({ data, student, session, persist }) {
   const [pw, setPw] = useState("");
   const [msg, setMsg] = useState("");
   const [uploading, setUploading] = useState(false);
-
   const grades = data.grades.filter((g) => g.studentId === student.id);
-  const gpa = grades.length
-    ? (grades.reduce((s, g) => s + scoreToPoint(g.score), 0) / grades.length).toFixed(2)
-    : "-";
-
+  const gpa = grades.length ? (grades.reduce((s, g) => s + scoreToPoint(g.score), 0) / grades.length).toFixed(2) : "-";
   const att = data.attendance.filter((a) => a.studentId === student.id);
-  const rate = att.length
-    ? Math.round(
-        (att.filter((a) => a.status === "present").length / att.length) * 100
-      )
-    : 100;
-
-  const assignments = data.assignments.filter(
-    (a) => a.class === student.class
-  );
-
-  const submissions = (data.submissions || []).filter(
-    (s) => s.studentId === student.id
-  );
-
-  const submittedCount = submissions.length;
-  const assignmentCount = assignments.length;
+  const rate = att.length ? Math.round((att.filter((a) => a.status === "present").length / att.length) * 100) : 100;
 
   function changePassword() {
     if (!pw) return;
-
-    persist({
-      ...data,
-      users: data.users.map((u) =>
-        u.username === session.username
-          ? { ...u, password: pw }
-          : u
-      ),
-    });
-
+    persist({ ...data, users: data.users.map((u) => (u.username === session.username ? { ...u, password: pw } : u)) });
     setPw("");
     setMsg("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
-
     setTimeout(() => setMsg(""), 3000);
   }
 
   function handlePhotoChange(e) {
     const file = e.target.files && e.target.files[0];
-
     if (!file) return;
-
     setUploading(true);
-
     const reader = new FileReader();
-
     reader.onload = () => {
       const img = new Image();
-
       img.onload = () => {
         const size = 200;
-
         const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
-
+        canvas.width = size; canvas.height = size;
         const ctx = canvas.getContext("2d");
-
-        const scale = Math.max(
-          size / img.width,
-          size / img.height
-        );
-
-        const w = img.width * scale;
-        const h = img.height * scale;
-
-        ctx.drawImage(
-          img,
-          (size - w) / 2,
-          (size - h) / 2,
-          w,
-          h
-        );
-
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-
-        persist({
-          ...data,
-          students: data.students.map((s) =>
-            s.id === student.id
-              ? { ...s, avatarDataUrl: dataUrl }
-              : s
-          ),
-        });
-
+        persist({ ...data, students: data.students.map((s) => (s.id === student.id ? { ...s, avatarDataUrl: dataUrl } : s)) });
         setUploading(false);
       };
-
       img.src = reader.result;
     };
-
     reader.readAsDataURL(file);
   }
 
   return (
     <div>
-
       <h1>โปรไฟล์นักเรียน</h1>
-
-      {/* PROFILE HEADER */}
-      <div className="sp-idcard sp-profile-header">
-
-        <div className="sp-avatar-upload-wrap">
-          <Avatar
-            name={student.name}
-            avatarDataUrl={student.avatarDataUrl}
-            size={90}
-          />
-
-          <label
-            className="sp-avatar-upload-btn"
-            title="เปลี่ยนรูปโปรไฟล์"
-          >
-            <Camera size={14} />
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoChange}
-              style={{ display: "none" }}
-            />
-          </label>
-        </div>
-
-        <div className="sp-idcard-info">
-
-          <div className="sp-idcard-name">
-            {student.name}
-          </div>
-
-          <div className="sp-idcard-meta">
-            ชั้น {student.class} · เลขที่ {student.number}
-          </div>
-
-          <div className="sp-idcard-meta">
-            รหัสนักเรียน{" "}
-            {student.studentCode || student.id.toUpperCase()}
-          </div>
-
-          <div className="sp-idcard-meta">
-            Username: {session.username}
-          </div>
-
-          {uploading && (
-            <div className="sp-profile-loading">
-              กำลังอัปโหลดรูป...
-            </div>
-          )}
-
-        </div>
-
-        <div className="sp-profile-status">
-          <span className="sp-status-dot"></span>
-          กำลังศึกษา
-        </div>
-
-      </div>
-
-
-      {/* STATISTICS */}
-      <div className="sp-stats-grid sp-profile-stats">
-
-        <div className="sp-card sp-stat">
-          <div className="sp-stat-icon">
-            <BookOpen size={20} />
-          </div>
-
-          <div className="sp-stat-label">
-            เกรดเฉลี่ย
-          </div>
-
-          <div className="sp-stat-value">
-            {gpa}
-          </div>
-        </div>
-
-
-        <div className="sp-card sp-stat">
-          <div className="sp-stat-icon">
-            <CheckSquare size={20} />
-          </div>
-
-          <div className="sp-stat-label">
-            อัตรามาเรียน
-          </div>
-
-          <div className="sp-stat-value">
-            {rate}%
-          </div>
-        </div>
-
-
-        <div className="sp-card sp-stat">
-          <div className="sp-stat-icon">
-            <ClipboardList size={20} />
-          </div>
-
-          <div className="sp-stat-label">
-            งานที่ส่งแล้ว
-          </div>
-
-          <div className="sp-stat-value">
-            {submittedCount}
-          </div>
-
-          <div className="sp-stat-small">
-            จาก {assignmentCount} งาน
-          </div>
-        </div>
-
-
-        <div className="sp-card sp-stat">
-          <div className="sp-stat-icon">
-            <User size={20} />
-          </div>
-
-          <div className="sp-stat-label">
-            สถานะบัญชี
-          </div>
-
-          <div className="sp-stat-status">
-            ปกติ
-          </div>
-        </div>
-
-      </div>
-
-
-      {/* TWO COLUMN */}
-      <div className="sp-two-col sp-profile-two-col">
-
-        {/* STUDENT INFORMATION */}
-        <div className="sp-card">
-
-          <div className="sp-card-title">
-            ข้อมูลนักเรียน
-          </div>
-
-          <div className="sp-profile-info-list">
-
-            <div className="sp-profile-info-row">
-              <span>ชื่อ-นามสกุล</span>
-              <strong>{student.name}</strong>
-            </div>
-
-            <div className="sp-profile-info-row">
-              <span>รหัสนักเรียน</span>
-              <strong>
-                {student.studentCode || student.id.toUpperCase()}
-              </strong>
-            </div>
-
-            <div className="sp-profile-info-row">
-              <span>ระดับชั้น</span>
-              <strong>{student.class}</strong>
-            </div>
-
-            <div className="sp-profile-info-row">
-              <span>เลขที่</span>
-              <strong>{student.number}</strong>
-            </div>
-
-            <div className="sp-profile-info-row">
-              <span>ชื่อผู้ใช้</span>
-              <strong>{session.username}</strong>
-            </div>
-
-          </div>
-
-        </div>
-
-
-        {/* LEARNING SUMMARY */}
-        <div className="sp-card">
-
-          <div className="sp-card-title">
-            สรุปการเรียน
-          </div>
-
-          <div className="sp-profile-summary">
-
-            <div className="sp-summary-item">
-              <span>รายวิชาที่มีคะแนน</span>
-              <strong>{grades.length} วิชา</strong>
-            </div>
-
-            <div className="sp-summary-item">
-              <span>จำนวนงานทั้งหมด</span>
-              <strong>{assignmentCount} งาน</strong>
-            </div>
-
-            <div className="sp-summary-item">
-              <span>ส่งงานแล้ว</span>
-              <strong>{submittedCount} งาน</strong>
-            </div>
-
-            <div className="sp-summary-item">
-              <span>การเข้าเรียน</span>
-              <strong>{rate}%</strong>
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-      {/* PASSWORD */}
-      <div className="sp-card sp-password-card">
-
-        <div className="sp-card-title">
-          เปลี่ยนรหัสผ่าน
-        </div>
-
-        <div className="sp-inline-form">
-
-          <input
-            className="sp-input"
-            type="password"
-            placeholder="รหัสผ่านใหม่"
-            value={pw}
-            onChange={(e) => setPw(e.target.value)}
-          />
-
-          <button
-            className="sp-btn-primary"
-            type="button"
-            onClick={changePassword}
-          >
-            บันทึก
-          </button>
-
-        </div>
-
-        {msg && (
-          <div className="sp-success">
-            {msg}
-          </div>
-        )}
-
-      </div>
-
-
-      {/* ACCOUNT SETTINGS */}
-      <div className="sp-card sp-account-card">
-
-        <div className="sp-card-title">
-          การตั้งค่าบัญชี
-        </div>
-
-        <div className="sp-setting-row">
-
-          <div>
-            <div className="sp-setting-title">
-              บัญชีนักเรียน
-            </div>
-
-            <div className="sp-setting-desc">
-              บัญชีของคุณกำลังใช้งานตามปกติ
-            </div>
-          </div>
-
-          <span className="sp-account-badge">
-            ใช้งานอยู่
-          </span>
-
-        </div>
-
-      </div>
-
-    </div>
-  );
-}
       <div className="sp-idcard">
         <div className="sp-avatar-upload-wrap">
           <Avatar name={student.name} avatarDataUrl={student.avatarDataUrl} size={80} />
