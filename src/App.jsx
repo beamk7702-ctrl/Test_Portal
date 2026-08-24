@@ -1545,11 +1545,180 @@ function StudentProfile({ data, student, session, persist }) {
   const [pw, setPw] = useState("");
   const [msg, setMsg] = useState("");
   const [uploading, setUploading] = useState(false);
-  const grades = data.grades.filter((g) => g.studentId === student.id);
-  const gpa = grades.length ? (grades.reduce((s, g) => s + scoreToPoint(g.score), 0) / grades.length).toFixed(2) : "-";
-  const att = data.attendance.filter((a) => a.studentId === student.id);
-  const rate = att.length ? Math.round((att.filter((a) => a.status === "present").length / att.length) * 100) : 100;
 
+  // คำนวณผลการเรียนและสถิติ
+  const grades = data.grades.filter((g) => g.studentId === student.id);
+  const gpa = grades.length
+    ? (grades.reduce((s, g) => s + scoreToPoint(g.score), 0) / grades.length).toFixed(2)
+    : "-";
+  const att = data.attendance.filter((a) => a.studentId === student.id);
+  const rate = att.length
+    ? Math.round((att.filter((a) => a.status === "present").length / att.length) * 100)
+    : 100;
+
+  const behaviorLogs = (data.behaviorLogs || []).filter((b) => b.studentId === student.id);
+  const behaviorScore = 100 + behaviorLogs.reduce((s, l) => s + l.points, 0);
+
+  const portfolio = (data.portfolioEntries || []).filter((p) => p.studentId === student.id);
+  const totalHours = portfolio.reduce((s, p) => s + p.hours, 0);
+
+  // ข้อมูลอาจารย์ที่ปรึกษา
+  const homeroom = (data.homeroomAssignments || []).find((h) => h.class === student.class);
+  const advisorUser = homeroom ? (data.users || []).find((u) => u.username === homeroom.teacherUsername) : null;
+  const advisorName = advisorUser ? advisorUser.name : "ครูปิง สอนดี";
+
+  function changePassword() {
+    if (!pw) return;
+    persist({
+      ...data,
+      users: data.users.map((u) => (u.username === session.username ? { ...u, password: pw } : u)),
+    });
+    setPw("");
+    setMsg("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  function handlePhotoChange(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 200;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+        persist({
+          ...data,
+          students: data.students.map((s) => (s.id === student.id ? { ...s, avatarDataUrl: dataUrl } : s)),
+        });
+        setUploading(false);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div>
+      <h1>โปรไฟล์นักเรียน</h1>
+
+      {/* 1. บัตรประจำตัวนักศึกษา */}
+      <div className="sp-idcard">
+        <div className="sp-avatar-upload-wrap">
+          <Avatar name={student.name} avatarDataUrl={student.avatarDataUrl} size={80} />
+          <label className="sp-avatar-upload-btn" title="เปลี่ยนรูปโปรไฟล์">
+            <Camera size={14} />
+            <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
+          </label>
+        </div>
+        <div className="sp-idcard-info">
+          <div className="sp-idcard-name">{student.name}</div>
+          <div className="sp-idcard-meta">
+            ระดับชั้น {student.class} · เลขที่ {student.number}
+          </div>
+          <div className="sp-idcard-meta">
+            รหัสประจำตัว {student.studentCode || student.id.toUpperCase()} · ชื่อผู้ใช้ {session.username}
+          </div>
+          {uploading && <div className="sp-idcard-meta" style={{ color: "var(--accent)" }}>กำลังบันทึกรูปโปรไฟล์...</div>}
+        </div>
+        <Stamp color="var(--accent)">GPA {gpa}</Stamp>
+      </div>
+
+      {/* 2. แผงสถิติรวม 4 มิติ */}
+      <div className="sp-stats-grid">
+        <div className="sp-card sp-stat">
+          <div className="sp-stat-label">เกรดเฉลี่ยสะสม (GPA)</div>
+          <div className="sp-stat-value" style={{ color: "var(--accent)" }}>{gpa}</div>
+        </div>
+        <div className="sp-card sp-stat">
+          <div className="sp-stat-label">อัตราการเข้าเรียน</div>
+          <div className="sp-stat-value">{rate}%</div>
+        </div>
+        <div className="sp-card sp-stat">
+          <div className="sp-stat-label">คะแนนความประพฤติ</div>
+          <div className="sp-stat-value" style={{ color: behaviorScore >= 100 ? "#1F7A3E" : "var(--accent2)" }}>
+            {behaviorScore}
+          </div>
+        </div>
+        <div className="sp-card sp-stat">
+          <div className="sp-stat-label">ชั่วโมงจิตอาสาสะสม</div>
+          <div className="sp-stat-value">{totalHours} ชม.</div>
+        </div>
+      </div>
+
+      {/* 3. กล่องคู่: ข้อมูลการศึกษา & ผลงานกิจกรรม */}
+      <div className="sp-two-col">
+        <div className="sp-card">
+          <div className="sp-card-title">ข้อมูลสถานะทางการศึกษา</div>
+          <div className="sp-list-row">
+            <span className="sp-list-sub">สถานะภาพ</span>
+            <span className="sp-tag" style={{ "--tag-color": "#1F7A3E" }}>กำลังศึกษาปกติ</span>
+          </div>
+          <div className="sp-list-row">
+            <span className="sp-list-sub">แผนกวิชา / สาขางาน</span>
+            <span className="sp-list-title">เทคโนโลยีธุรกิจดิจิทัล (Digital Business Technology)</span>
+          </div>
+          <div className="sp-list-row">
+            <span className="sp-list-sub">อาจารย์ที่ปรึกษา</span>
+            <span className="sp-list-title">{advisorName}</span>
+          </div>
+          <div className="sp-list-row">
+            <span className="sp-list-sub">อีเมลประจำตัวสถาบัน</span>
+            <span className="sp-list-title">{session.email || `${session.username}@btad.ac.th`}</span>
+          </div>
+          <div className="sp-list-row">
+            <span className="sp-list-sub">หลักสูตร</span>
+            <span className="sp-list-title">ประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.) พ.ศ. 2567</span>
+          </div>
+        </div>
+
+        <div className="sp-card">
+          <div className="sp-card-title">ประวัติกิจกรรมและจิตอาสาล่าสุด</div>
+          {portfolio.length === 0 ? (
+            <div className="sp-empty">ยังไม่มีการบันทึกชั่วโมงกิจกรรม</div>
+          ) : (
+            portfolio.slice(0, 4).map((p) => (
+              <div key={p.id} className="sp-list-row">
+                <div>
+                  <div className="sp-list-title">{p.activity}</div>
+                  <div className="sp-list-sub">{fmtDate(p.date)}</div>
+                </div>
+                <span className="sp-tag" style={{ "--tag-color": "var(--accent)" }}>+{p.hours} ชม.</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* 4. กล่องความปลอดภัยบัญชี */}
+      <div className="sp-card">
+        <div className="sp-card-title">ความปลอดภัยและการเข้าใช้งานบัญชี</div>
+        <div className="sp-inline-form">
+          <input
+            className="sp-input"
+            type="password"
+            placeholder="พิมพ์รหัสผ่านใหม่ที่ต้องการเปลี่ยน"
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+          />
+          <button className="sp-btn-primary" type="button" onClick={changePassword}>
+            บันทึกรหัสผ่านใหม่
+          </button>
+        </div>
+        {msg && <div className="sp-success">{msg}</div>}
+      </div>
+    </div>
+  );
+}
   function changePassword() {
     if (!pw) return;
     persist({ ...data, users: data.users.map((u) => (u.username === session.username ? { ...u, password: pw } : u)) });
