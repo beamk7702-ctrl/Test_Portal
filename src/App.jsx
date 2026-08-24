@@ -1298,17 +1298,18 @@ function StudentGrades({ data, student }) {
 
   const allMyGrades = data.grades.filter((g) => g.studentId === student.id);
   const termGrades = selectedTerm ? allMyGrades.filter((g) => g.termId === selectedTerm.id) : [];
-  const gpa = termGrades.length
-    ? (termGrades.reduce((s, g) => s + scoreToPoint(g.score), 0) / termGrades.length).toFixed(2)
-    : "-";
 
-  // GPAX: cumulative average across every term up to and including the one selected,
-  // using chronological term order (by academic year, then term number) — not array order.
+  // คำนวณหน่วยกิตและ GPA
+  const termCredits = termGrades.length * 3; // สมมติมาตรฐานวิชาละ 3 หน่วยกิต
+  const termPoints = termGrades.reduce((s, g) => s + (scoreToPoint(g.score) * 3), 0);
+  const gpa = termCredits > 0 ? (termPoints / termCredits).toFixed(2) : "-";
+
+  // คำนวณ GPAX สะสม
   const cumulativeTermIds = new Set(orderedTerms.slice(0, selectedIndex + 1).map((t) => t.id));
   const cumulativeGrades = allMyGrades.filter((g) => cumulativeTermIds.has(g.termId));
-  const gpax = cumulativeGrades.length
-    ? (cumulativeGrades.reduce((s, g) => s + scoreToPoint(g.score), 0) / cumulativeGrades.length).toFixed(2)
-    : "-";
+  const totalCredits = cumulativeGrades.length * 3;
+  const totalPoints = cumulativeGrades.reduce((s, g) => s + (scoreToPoint(g.score) * 3), 0);
+  const gpax = totalCredits > 0 ? (totalPoints / totalCredits).toFixed(2) : "-";
 
   const today = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 
@@ -1324,64 +1325,86 @@ function StudentGrades({ data, student }) {
               return <option key={t.id} value={t.id}>ปีการศึกษา {y?.label} · เทอม {t.termNumber}</option>;
             })}
           </select>
-          <button className="sp-btn-primary" type="button" onClick={() => window.print()}><FileText size={16} /> พิมพ์ / บันทึกใบเกรด (PDF)</button>
+          <button className="sp-btn-primary" type="button" onClick={() => window.print()}><FileText size={16} /> พิมพ์ใบแสดงผลการเรียน (Official PDF)</button>
         </div>
       </div>
 
-      <div className="sp-grade-report-doc">
-        <div className="sp-report-header">
-          <img src={LOGO} alt="ตราวิทยาลัย" className="sp-report-seal" />
-          <div>
-            <div className="sp-report-college-name">{data.siteContent?.schoolName || "วิทยาลัย"}</div>
-            <div className="sp-report-subtitle">ใบรายงานผลการเรียน (Grade Report)</div>
-            <div className="sp-report-subtitle">ปีการศึกษา {selectedYear?.label || "-"} · เทอม {selectedTerm?.termNumber || "-"}</div>
+      {/* เอกสารใบรายงานผลการเรียนทางการ */}
+      <div className="sp-grade-report-doc" style={{ fontFamily: "'Sarabun', sans-serif" }}>
+        <div className="sp-report-header" style={{ borderBottom: "2px solid #111", paddingBottom: "16px", marginBottom: "20px" }}>
+          <img src={LOGO} alt="ตราวิทยาลัย" className="sp-report-seal" style={{ width: "80px", height: "80px" }} />
+          <div style={{ textAlign: "center", flex: 1 }}>
+            <div style={{ fontFamily: "'Kanit', serif", fontWeight: 700, fontSize: "1.25rem" }}>{data.siteContent?.schoolName || "วิทยาลัยอาชีวศึกษาเทคนิคบริหารธุรกิจกรุงเทพ"}</div>
+            <div style={{ fontSize: "1rem", fontWeight: 600, marginTop: "2px" }}>ใบรายงานผลการเรียนรายภาคเรียน (TRANSCRIPT OF ACADEMIC RECORD)</div>
+            <div style={{ fontSize: "0.88rem", color: "var(--muted)", marginTop: "2px" }}>
+              ภาคเรียนที่ {selectedTerm?.termNumber || "-"} ปีการศึกษา {selectedYear?.label || "-"}
+            </div>
           </div>
         </div>
 
-        <div className="sp-report-student-info">
-          <div><span className="sp-report-label">ชื่อ-นามสกุล:</span> {student.name}</div>
-          <div><span className="sp-report-label">รหัสนักเรียน:</span> {student.studentCode || student.id.toUpperCase()}</div>
-          <div><span className="sp-report-label">ชั้น:</span> {student.class}</div>
-          <div><span className="sp-report-label">เลขที่:</span> {student.number}</div>
+        <div className="sp-report-student-info" style={{ background: "transparent", border: "1px solid var(--line)", borderRadius: "8px", padding: "14px 18px", marginBottom: "20px", display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "10px" }}>
+          <div><span style={{ fontWeight: 600 }}>ชื่อ-สกุล:</span> {student.name}</div>
+          <div><span style={{ fontWeight: 600 }}>รหัสประจำตัว:</span> {student.studentCode || student.id.toUpperCase()}</div>
+          <div><span style={{ fontWeight: 600 }}>ระดับชั้น/กลุ่ม:</span> {student.class} (เลขที่ {student.number})</div>
+          <div><span style={{ fontWeight: 600 }}>สาขาวิชา:</span> เทคโนโลยีธุรกิจดิจิทัล</div>
         </div>
 
-        <table className="sp-report-table">
-          <thead><tr><th>วิชา</th><th>คะแนน</th><th>ระดับคะแนน</th></tr></thead>
+        <table className="sp-report-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: "24px" }}>
+          <thead>
+            <tr style={{ background: "var(--bg)", borderTop: "2px solid #111", borderBottom: "2px solid #111" }}>
+              <th style={{ padding: "8px", textAlign: "center", width: "10%" }}>ลำดับ</th>
+              <th style={{ padding: "8px", textAlign: "left" }}>ชื่อรายวิชา (Subject)</th>
+              <th style={{ padding: "8px", textAlign: "center", width: "12%" }}>หน่วยกิต (CR)</th>
+              <th style={{ padding: "8px", textAlign: "center", width: "14%" }}>คะแนน (100)</th>
+              <th style={{ padding: "8px", textAlign: "center", width: "14%" }}>ระดับผลการเรียน (Grade)</th>
+            </tr>
+          </thead>
           <tbody>
             {termGrades.length === 0 ? (
-              <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)" }}>ยังไม่มีข้อมูลคะแนนในภาคเรียนนี้</td></tr>
-            ) : termGrades.map((g) => (
-              <tr key={g.id}>
-                <td>{g.subject}</td>
-                <td>{g.score}/100</td>
-                <td>{scoreToPoint(g.score).toFixed(1)}</td>
+              <tr><td colSpan={5} style={{ textAlign: "center", padding: "20px", color: "var(--muted)" }}>ไม่มีรายการผลการเรียนในภาคเรียนนี้</td></tr>
+            ) : termGrades.map((g, idx) => (
+              <tr key={g.id} style={{ borderBottom: "1px solid var(--line)" }}>
+                <td style={{ textAlign: "center", padding: "8px" }}>{idx + 1}</td>
+                <td style={{ padding: "8px", fontWeight: 500 }}>{g.subject}</td>
+                <td style={{ textAlign: "center", padding: "8px" }}>3.0</td>
+                <td style={{ textAlign: "center", padding: "8px" }}>{g.score}</td>
+                <td style={{ textAlign: "center", padding: "8px", fontWeight: 700 }}>{scoreToPoint(g.score).toFixed(1)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <div className="sp-report-summary">
-          <div className="sp-report-summary-box">
-            <div className="sp-report-summary-label">GPA ภาคเรียนนี้</div>
-            <div className="sp-report-summary-value">{gpa}</div>
+        {/* สรุปคะแนนมาตรฐาน */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "40px", padding: "12px 16px", background: "var(--bg)", borderRadius: "8px", border: "1px solid var(--line)" }}>
+          <div>
+            <div style={{ fontSize: "0.85rem", marginBottom: "4px" }}>• จำนวนหน่วยกิตประจำภาค: <strong>{termCredits}.0</strong> หน่วยกิต</div>
+            <div style={{ fontSize: "0.85rem" }}>• ระดับคะแนนเฉลี่ยประจำภาค (GPA): <strong style={{ fontSize: "1.1rem", color: "var(--accent)" }}>{gpa}</strong></div>
           </div>
-          <div className="sp-report-summary-box">
-            <div className="sp-report-summary-label">GPAX สะสม</div>
-            <div className="sp-report-summary-value">{gpax}</div>
+          <div>
+            <div style={{ fontSize: "0.85rem", marginBottom: "4px" }}>• จำนวนหน่วยกิตสะสมทั้งหมด: <strong>{totalCredits}.0</strong> หน่วยกิต</div>
+            <div style={{ fontSize: "0.85rem" }}>• ระดับคะแนนเฉลี่ยสะสม (GPAX): <strong style={{ fontSize: "1.1rem", color: "var(--accent)" }}>{gpax}</strong></div>
           </div>
         </div>
 
-        <div className="sp-report-signatures">
-          <div className="sp-report-sign-line">
-            <div className="line" />
-            <div>ครูประจำชั้น</div>
+        {/* ลายมือชื่อทางการ */}
+        <div className="sp-report-signatures" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px", marginTop: "30px", textAlign: "center" }}>
+          <div>
+            <div style={{ borderBottom: "1px dotted #111", width: "160px", margin: "40px auto 8px" }}></div>
+            <div style={{ fontSize: "0.85rem" }}>ครูที่ปรึกษา / ครูประจำชั้น</div>
           </div>
-          <div className="sp-report-sign-line">
-            <div className="line" />
-            <div>นายทะเบียน</div>
+          <div>
+            <div style={{ borderBottom: "1px dotted #111", width: "160px", margin: "40px auto 8px" }}></div>
+            <div style={{ fontSize: "0.85rem" }}>หัวหน้างานทะเบียนและวัดผล</div>
+          </div>
+          <div>
+            <div style={{ borderBottom: "1px dotted #111", width: "160px", margin: "40px auto 8px" }}></div>
+            <div style={{ fontSize: "0.85rem" }}>ผู้อำนวยการสถานศึกษา</div>
           </div>
         </div>
-        <div className="sp-report-date">ออกรายงาน ณ วันที่ {today}</div>
+
+        <div style={{ textAlign: "right", fontSize: "0.75rem", color: "var(--muted)", marginTop: "30px" }}>
+          เอกสารออกโดยระบบสมุดพกออนไลน์ เมื่อวันที่ {today}
+        </div>
       </div>
     </div>
   );
@@ -1576,6 +1599,28 @@ function StudentProfile({ data, student, session, persist }) {
     setTimeout(() => setMsg(""), 3000);
   }
 
+  function changePassword() {
+    if (!pw) return;
+    persist({
+      ...data,
+      users: data.users.map((u) => (u.username === session.username ? { ...u, password: pw } : u)),
+    });
+    setPw("");
+    setMsg("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
+    setTimeout(() => setMsg(""), 3000);
+  }
+
+  function changePassword() {
+    if (!pw) return;
+    persist({
+      ...data,
+      users: data.users.map((u) => (u.username === session.username ? { ...u, password: pw } : u)),
+    });
+    setPw("");
+    setMsg("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
+    setTimeout(() => setMsg(""), 3000);
+  }
+
   function handlePhotoChange(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -1609,6 +1654,7 @@ function StudentProfile({ data, student, session, persist }) {
     <div>
       <h1>โปรไฟล์นักเรียน</h1>
 
+      {/* บัตรข้อมูลนักศึกษา */}
       <div className="sp-idcard">
         <div className="sp-avatar-upload-wrap">
           <Avatar name={student.name} avatarDataUrl={student.avatarDataUrl} size={80} />
@@ -1630,6 +1676,7 @@ function StudentProfile({ data, student, session, persist }) {
         <Stamp color="var(--accent)">GPA {gpa}</Stamp>
       </div>
 
+      {/* สถิติ 4 ช่อง */}
       <div className="sp-stats-grid">
         <div className="sp-card sp-stat">
           <div className="sp-stat-label">เกรดเฉลี่ยรวม</div>
@@ -1651,6 +1698,7 @@ function StudentProfile({ data, student, session, persist }) {
         </div>
       </div>
 
+      {/* ข้อมูลการศึกษา & กิจกรรม */}
       <div className="sp-two-col">
         <div className="sp-card">
           <div className="sp-card-title">ข้อมูลสถานะการศึกษา</div>
@@ -1690,6 +1738,7 @@ function StudentProfile({ data, student, session, persist }) {
         </div>
       </div>
 
+      {/* กล่องเปลี่ยนรหัสผ่าน */}
       <div className="sp-card">
         <div className="sp-card-title">ความปลอดภัยบัญชี (เปลี่ยนรหัสผ่าน)</div>
         <div className="sp-inline-form">
