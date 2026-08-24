@@ -2,17 +2,6 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 
-// ------------------------------------------------------------------
-// Polyfill for window.storage (the persistent key-value API that only
-// exists inside Claude.ai artifacts). This makes App.jsx run unchanged
-// outside Claude by backing the same get/set/delete/list API with the
-// browser's localStorage instead.
-//
-// NOTE: localStorage is per-browser only (not shared between devices
-// or users). Once the Supabase integration is finished, App.jsx will
-// talk to Supabase directly instead of window.storage, and this
-// polyfill can be deleted.
-// ------------------------------------------------------------------
 function storageKey(key, shared) {
   return `sp:${shared ? "shared" : "local"}:${key}`;
 }
@@ -23,12 +12,29 @@ window.storage = {
     if (raw === null) {
       throw new Error(`Key not found: ${key}`);
     }
-    return { key, value: raw, shared };
+    
+    // แปลงกลับเป็น Object/Array อัตโนมัติ (ถ้าเป็น JSON string)
+    try {
+      return { key, value: JSON.parse(raw), shared };
+    } catch {
+      return { key, value: raw, shared };
+    }
   },
+
   async set(key, value, shared = false) {
-    localStorage.setItem(storageKey(key, shared), value);
-    return { key, value, shared };
+    try {
+      // แปลง Object/Array เป็น string ก่อนบันทึก
+      const serialized = typeof value === "string" ? value : JSON.stringify(value);
+      localStorage.setItem(storageKey(key, shared), serialized);
+      return { key, value, shared };
+    } catch (err) {
+      if (err.name === "QuotaExceededError") {
+        throw new Error("Storage quota exceeded (localStorage limit is ~5MB)");
+      }
+      throw err;
+    }
   },
+
   async delete(key, shared = false) {
     const k = storageKey(key, shared);
     const existed = localStorage.getItem(k) !== null;
@@ -36,6 +42,7 @@ window.storage = {
     if (!existed) throw new Error(`Key not found: ${key}`);
     return { key, deleted: true, shared };
   },
+
   async list(prefix = "", shared = false) {
     const ns = `sp:${shared ? "shared" : "local"}:`;
     const keys = [];
