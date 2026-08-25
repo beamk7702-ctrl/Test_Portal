@@ -1283,6 +1283,8 @@ function StudentDashboard({ data, student }) {
   );
 }
 
+const CREDIT_PER_SUBJECT = 3.0;
+
 function StudentGrades({ data, student }) {
   const orderedTerms = [...data.terms].sort((a, b) => {
     const yearA = data.academicYears.find((y) => y.id === a.academicYearId)?.label || "";
@@ -1298,16 +1300,18 @@ function StudentGrades({ data, student }) {
 
   const allMyGrades = data.grades.filter((g) => g.studentId === student.id);
   const termGrades = selectedTerm ? allMyGrades.filter((g) => g.termId === selectedTerm.id) : [];
+  const termCredits = (termGrades.length * CREDIT_PER_SUBJECT).toFixed(1);
   const gpa = termGrades.length
-    ? (termGrades.reduce((s, g) => s + scoreToPoint(g.score), 0) / termGrades.length).toFixed(2)
+    ? (termGrades.reduce((s, g) => s + scoreToPoint(g.score) * CREDIT_PER_SUBJECT, 0) / (termGrades.length * CREDIT_PER_SUBJECT)).toFixed(2)
     : "-";
 
   // GPAX: cumulative average across every term up to and including the one selected,
   // using chronological term order (by academic year, then term number) — not array order.
   const cumulativeTermIds = new Set(orderedTerms.slice(0, selectedIndex + 1).map((t) => t.id));
   const cumulativeGrades = allMyGrades.filter((g) => cumulativeTermIds.has(g.termId));
+  const cumulativeCredits = (cumulativeGrades.length * CREDIT_PER_SUBJECT).toFixed(1);
   const gpax = cumulativeGrades.length
-    ? (cumulativeGrades.reduce((s, g) => s + scoreToPoint(g.score), 0) / cumulativeGrades.length).toFixed(2)
+    ? (cumulativeGrades.reduce((s, g) => s + scoreToPoint(g.score) * CREDIT_PER_SUBJECT, 0) / (cumulativeGrades.length * CREDIT_PER_SUBJECT)).toFixed(2)
     : "-";
 
   const today = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
@@ -1332,27 +1336,30 @@ function StudentGrades({ data, student }) {
         <div className="sp-report-header">
           <img src={LOGO} alt="ตราวิทยาลัย" className="sp-report-seal" />
           <div>
-            <div className="sp-report-college-name">{data.siteContent?.schoolName || "วิทยาลัย"}</div>
-            <div className="sp-report-subtitle">ใบรายงานผลการเรียน (Grade Report)</div>
-            <div className="sp-report-subtitle">ปีการศึกษา {selectedYear?.label || "-"} · เทอม {selectedTerm?.termNumber || "-"}</div>
+            <div className="sp-report-college-name">{data.siteContent?.schoolName || "วิทยาลัยอาชีวศึกษาเทคนิคบริหารธุรกิจกรุงเทพ"}</div>
+            <div className="sp-report-subtitle">ใบรายงานผลการเรียนรายภาคเรียน (TRANSCRIPT OF ACADEMIC RECORD)</div>
+            <div className="sp-report-subtitle">ปีการศึกษา {selectedYear?.label || "-"} · ภาคเรียนที่ {selectedTerm?.termNumber || "-"}</div>
           </div>
         </div>
 
         <div className="sp-report-student-info">
           <div><span className="sp-report-label">ชื่อ-นามสกุล:</span> {student.name}</div>
-          <div><span className="sp-report-label">รหัสนักเรียน:</span> {student.studentCode || student.id.toUpperCase()}</div>
-          <div><span className="sp-report-label">ชั้น:</span> {student.class}</div>
+          <div><span className="sp-report-label">รหัสประจำตัวนักเรียน:</span> {student.studentCode || student.id.toUpperCase()}</div>
+          <div><span className="sp-report-label">ระดับชั้น/กลุ่ม:</span> {student.class}</div>
           <div><span className="sp-report-label">เลขที่:</span> {student.number}</div>
+          <div><span className="sp-report-label">สาขาวิชา:</span> เทคโนโลยีธุรกิจดิจิทัล</div>
         </div>
 
         <table className="sp-report-table">
-          <thead><tr><th>วิชา</th><th>คะแนน</th><th>ระดับคะแนน</th></tr></thead>
+          <thead><tr><th>ลำดับ</th><th>ชื่อรายวิชา (Subject)</th><th>หน่วยกิต</th><th>คะแนนเต็ม 100</th><th>ระดับผลการเรียน</th></tr></thead>
           <tbody>
             {termGrades.length === 0 ? (
-              <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)" }}>ยังไม่มีข้อมูลคะแนนในภาคเรียนนี้</td></tr>
-            ) : termGrades.map((g) => (
+              <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--muted)" }}>ยังไม่มีข้อมูลคะแนนในภาคเรียนนี้</td></tr>
+            ) : termGrades.map((g, i) => (
               <tr key={g.id}>
+                <td>{i + 1}</td>
                 <td>{g.subject}</td>
+                <td>{CREDIT_PER_SUBJECT.toFixed(1)}</td>
                 <td>{g.score}/100</td>
                 <td>{scoreToPoint(g.score).toFixed(1)}</td>
               </tr>
@@ -1362,8 +1369,16 @@ function StudentGrades({ data, student }) {
 
         <div className="sp-report-summary">
           <div className="sp-report-summary-box">
-            <div className="sp-report-summary-label">GPA ภาคเรียนนี้</div>
+            <div className="sp-report-summary-label">หน่วยกิตประจำภาค</div>
+            <div className="sp-report-summary-value">{termCredits}</div>
+          </div>
+          <div className="sp-report-summary-box">
+            <div className="sp-report-summary-label">GPA ประจำภาค</div>
             <div className="sp-report-summary-value">{gpa}</div>
+          </div>
+          <div className="sp-report-summary-box">
+            <div className="sp-report-summary-label">หน่วยกิตสะสมทั้งหมด</div>
+            <div className="sp-report-summary-value">{cumulativeCredits}</div>
           </div>
           <div className="sp-report-summary-box">
             <div className="sp-report-summary-label">GPAX สะสม</div>
@@ -1374,14 +1389,18 @@ function StudentGrades({ data, student }) {
         <div className="sp-report-signatures">
           <div className="sp-report-sign-line">
             <div className="line" />
-            <div>ครูประจำชั้น</div>
+            <div>ครูที่ปรึกษา/ประจำชั้น</div>
           </div>
           <div className="sp-report-sign-line">
             <div className="line" />
-            <div>นายทะเบียน</div>
+            <div>หัวหน้างานทะเบียนและวัดผล</div>
+          </div>
+          <div className="sp-report-sign-line">
+            <div className="line" />
+            <div>ผู้อำนวยการสถานศึกษา</div>
           </div>
         </div>
-        <div className="sp-report-date">ออกรายงาน ณ วันที่ {today}</div>
+        <div className="sp-report-date">ออกเอกสาร ณ วันที่ {today}</div>
       </div>
     </div>
   );
@@ -1545,10 +1564,21 @@ function StudentProfile({ data, student, session, persist }) {
   const [pw, setPw] = useState("");
   const [msg, setMsg] = useState("");
   const [uploading, setUploading] = useState(false);
+
   const grades = data.grades.filter((g) => g.studentId === student.id);
   const gpa = grades.length ? (grades.reduce((s, g) => s + scoreToPoint(g.score), 0) / grades.length).toFixed(2) : "-";
   const att = data.attendance.filter((a) => a.studentId === student.id);
-  const rate = att.length ? Math.round((att.filter((a) => a.status === "present").length / att.length) * 100) : 100;
+  const attRate = att.length ? Math.round((att.filter((a) => a.status === "present").length / att.length) * 100) : 100;
+  const behaviorLogs = data.behaviorLogs.filter((b) => b.studentId === student.id);
+  const behaviorScore = 100 + behaviorLogs.reduce((s, l) => s + l.points, 0);
+  const portfolioEntries = data.portfolioEntries.filter((p) => p.studentId === student.id);
+  const volunteerHours = portfolioEntries.reduce((s, p) => s + (p.hours || 0), 0);
+
+  const homeroom = (data.homeroomAssignments || []).find((h) => h.class === student.class);
+  const advisor = homeroom ? data.users.find((u) => u.username === homeroom.teacherUsername) : null;
+  const studentUser = data.users.find((u) => u.studentId === student.id);
+
+  const recentActivity = [...portfolioEntries].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3);
 
   function changePassword() {
     if (!pw) return;
@@ -1600,12 +1630,40 @@ function StudentProfile({ data, student, session, persist }) {
           {uploading && <div className="sp-idcard-meta">กำลังอัปโหลดรูป...</div>}
         </div>
       </div>
+
       <div className="sp-stats-grid">
-        <div className="sp-card sp-stat"><div className="sp-stat-label">เกรดเฉลี่ย</div><div className="sp-stat-value">{gpa}</div></div>
-        <div className="sp-card sp-stat"><div className="sp-stat-label">อัตรามาเรียน</div><div className="sp-stat-value">{rate}%</div></div>
+        <div className="sp-card sp-stat"><div className="sp-stat-label">เกรดเฉลี่ยสะสม (GPA)</div><div className="sp-stat-value">{gpa}</div></div>
+        <div className="sp-card sp-stat"><div className="sp-stat-label">อัตราการเข้าเรียน</div><div className="sp-stat-value">{attRate}%</div></div>
+        <div className="sp-card sp-stat"><div className="sp-stat-label">คะแนนความประพฤติ</div><div className="sp-stat-value">{behaviorScore}</div></div>
+        <div className="sp-card sp-stat"><div className="sp-stat-label">ชั่วโมงจิตอาสาสะสม</div><div className="sp-stat-value">{volunteerHours}</div></div>
       </div>
+
+      <div className="sp-two-col">
+        <div className="sp-card">
+          <div className="sp-card-title">สถานะการศึกษา</div>
+          <div className="sp-profile-info-row"><span className="sp-report-label">สถานะ:</span> <span className="sp-tag" style={{ "--tag-color": "var(--accent)" }}>กำลังศึกษา</span></div>
+          <div className="sp-profile-info-row"><span className="sp-report-label">แผนกวิชา:</span> เทคโนโลยีธุรกิจดิจิทัล</div>
+          <div className="sp-profile-info-row"><span className="sp-report-label">อาจารย์ที่ปรึกษา:</span> {advisor?.name || "ยังไม่ได้กำหนด"}</div>
+          <div className="sp-profile-info-row"><span className="sp-report-label">อีเมลสถาบัน:</span> {studentUser?.email || "-"}</div>
+        </div>
+
+        <div className="sp-card">
+          <div className="sp-card-title">ผลงานและกิจกรรมล่าสุด</div>
+          {recentActivity.length === 0 && <div className="sp-empty">ยังไม่มีผลงาน/กิจกรรมบันทึกไว้</div>}
+          {recentActivity.map((p) => (
+            <div key={p.id} className="sp-list-row">
+              <div>
+                <div className="sp-list-title">{p.activity}</div>
+                <div className="sp-list-sub">{fmtDate(p.date)}</div>
+              </div>
+              <span className="sp-tag" style={{ "--tag-color": "var(--accent)" }}>{p.hours} ชม.</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="sp-card">
-        <div className="sp-card-title">เปลี่ยนรหัสผ่าน</div>
+        <div className="sp-card-title">ความปลอดภัยบัญชี</div>
         <div className="sp-inline-form">
           <input className="sp-input" type="password" placeholder="รหัสผ่านใหม่" value={pw} onChange={(e) => setPw(e.target.value)} />
           <button className="sp-btn-primary" type="button" onClick={changePassword}>บันทึก</button>
