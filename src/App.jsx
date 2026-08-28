@@ -1573,18 +1573,18 @@ function StudentProfile({ data, student, session, persist }) {
   const behaviorScore = 100 + behaviorLogs.reduce((s, l) => s + l.points, 0);
   const portfolioEntries = data.portfolioEntries.filter((p) => p.studentId === student.id);
   const volunteerHours = portfolioEntries.reduce((s, p) => s + (p.hours || 0), 0);
+  const assignments = (data.assignments || []).filter((a) => a.class === student.class);
+  const submissions = (data.submissions || []).filter((x) => x.studentId === student.id);
 
   const homeroom = (data.homeroomAssignments || []).find((h) => h.class === student.class);
   const advisor = homeroom ? data.users.find((u) => u.username === homeroom.teacherUsername) : null;
   const studentUser = data.users.find((u) => u.studentId === student.id);
-
   const recentActivity = [...portfolioEntries].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3);
 
   function changePassword() {
     if (!pw) return;
     persist({ ...data, users: data.users.map((u) => (u.username === session.username ? { ...u, password: pw } : u)) });
-    setPw("");
-    setMsg("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
+    setPw(""); setMsg("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
     setTimeout(() => setMsg(""), 3000);
   }
 
@@ -1596,8 +1596,7 @@ function StudentProfile({ data, student, session, persist }) {
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const size = 200;
-        const canvas = document.createElement("canvas");
+        const size = 200, canvas = document.createElement("canvas");
         canvas.width = size; canvas.height = size;
         const ctx = canvas.getContext("2d");
         const scale = Math.max(size / img.width, size / img.height);
@@ -1613,67 +1612,67 @@ function StudentProfile({ data, student, session, persist }) {
   }
 
   return (
-    <div>
-      <h1>โปรไฟล์นักเรียน</h1>
-      <div className="sp-idcard">
-        <div className="sp-avatar-upload-wrap">
-          <Avatar name={student.name} avatarDataUrl={student.avatarDataUrl} size={80} />
-          <label className="sp-avatar-upload-btn" title="เปลี่ยนรูปโปรไฟล์">
-            <Camera size={14} />
-            <input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} />
-          </label>
-        </div>
-        <div className="sp-idcard-info">
-          <div className="sp-idcard-name">{student.name}</div>
-          <div className="sp-idcard-meta">ชั้น {student.class} · เลขที่ {student.number}</div>
-          <div className="sp-idcard-meta">รหัสนักเรียน {student.studentCode || student.id.toUpperCase()} · ผู้ใช้ {session.username}</div>
-          {uploading && <div className="sp-idcard-meta">กำลังอัปโหลดรูป...</div>}
+    <div className="sp-profile-page">
+      <div className="sp-profile-cover">
+        <div className="sp-profile-header">
+          <div className="sp-profile-avatar-wrap">
+            <Avatar name={student.name} avatarDataUrl={student.avatarDataUrl} size={118} />
+            <label className="sp-avatar-upload-btn" title="เปลี่ยนรูปโปรไฟล์"><Camera size={16} /><input type="file" accept="image/*" onChange={handlePhotoChange} style={{ display: "none" }} /></label>
+          </div>
+          <div className="sp-profile-title">
+            <span className="sp-profile-role">นักเรียน</span>
+            <h1>{student.name}</h1>
+            <p>รหัสนักเรียน {student.studentCode || student.id.toUpperCase()} · @{session.username}</p>
+            <div className="sp-profile-tags"><span>🏫 {student.class}</span><span>🔢 เลขที่ {student.number || "-"}</span><span>🎓 กำลังศึกษา</span></div>
+            {uploading && <div className="sp-profile-uploading">กำลังอัปโหลดรูป...</div>}
+          </div>
         </div>
       </div>
 
-      <div className="sp-stats-grid">
-        <div className="sp-card sp-stat"><div className="sp-stat-label">เกรดเฉลี่ยสะสม (GPA)</div><div className="sp-stat-value">{gpa}</div></div>
-        <div className="sp-card sp-stat"><div className="sp-stat-label">อัตราการเข้าเรียน</div><div className="sp-stat-value">{attRate}%</div></div>
-        <div className="sp-card sp-stat"><div className="sp-stat-label">คะแนนความประพฤติ</div><div className="sp-stat-value">{behaviorScore}</div></div>
-        <div className="sp-card sp-stat"><div className="sp-stat-label">ชั่วโมงจิตอาสาสะสม</div><div className="sp-stat-value">{volunteerHours}</div></div>
+      <div className="sp-profile-stats">
+        <div className="sp-profile-stat"><div className="sp-profile-stat-icon">📚</div><div><div className="sp-profile-stat-label">เกรดเฉลี่ย</div><div className="sp-profile-stat-value">{gpa}</div></div></div>
+        <div className="sp-profile-stat"><div className="sp-profile-stat-icon">📅</div><div><div className="sp-profile-stat-label">การเข้าเรียน</div><div className="sp-profile-stat-value">{attRate}%</div></div></div>
+        <div className="sp-profile-stat"><div className="sp-profile-stat-icon">📝</div><div><div className="sp-profile-stat-label">งานทั้งหมด</div><div className="sp-profile-stat-value">{assignments.length}</div></div></div>
+        <div className="sp-profile-stat"><div className="sp-profile-stat-icon">⏱️</div><div><div className="sp-profile-stat-label">จิตอาสาสะสม</div><div className="sp-profile-stat-value">{volunteerHours}</div></div></div>
       </div>
 
-      <div className="sp-two-col">
-        <div className="sp-card">
-          <div className="sp-card-title">สถานะการศึกษา</div>
-          <div className="sp-profile-info-row"><span className="sp-report-label">สถานะ:</span> <span className="sp-tag" style={{ "--tag-color": "var(--accent)" }}>กำลังศึกษา</span></div>
-          <div className="sp-profile-info-row"><span className="sp-report-label">แผนกวิชา:</span> เทคโนโลยีธุรกิจดิจิทัล</div>
-          <div className="sp-profile-info-row"><span className="sp-report-label">อาจารย์ที่ปรึกษา:</span> {advisor?.name || "ยังไม่ได้กำหนด"}</div>
-          <div className="sp-profile-info-row"><span className="sp-report-label">อีเมลสถาบัน:</span> {studentUser?.email || "-"}</div>
+      <div className="sp-profile-grid">
+        <div className="sp-card sp-profile-info-card">
+          <div className="sp-card-title">ข้อมูลส่วนตัว</div>
+          <div className="sp-profile-info-list">
+            <div className="sp-profile-info-row"><span>👤 ชื่อ-นามสกุล</span><strong>{student.name}</strong></div>
+            <div className="sp-profile-info-row"><span>🪪 รหัสนักเรียน</span><strong>{student.studentCode || student.id.toUpperCase()}</strong></div>
+            <div className="sp-profile-info-row"><span>🏫 ห้องเรียน</span><strong>{student.class}</strong></div>
+            <div className="sp-profile-info-row"><span>👨‍🏫 อาจารย์ที่ปรึกษา</span><strong>{advisor?.name || "ยังไม่ได้กำหนด"}</strong></div>
+            <div className="sp-profile-info-row"><span>📧 อีเมล</span><strong>{studentUser?.email || "-"}</strong></div>
+          </div>
         </div>
 
+        <div className="sp-card sp-profile-summary-card">
+          <div className="sp-card-title">ภาพรวมการเรียน</div>
+          <div className="sp-progress-label"><span>การเข้าเรียน</span><strong>{attRate}%</strong></div>
+          <div className="sp-progress-bar"><div className="sp-progress-fill" style={{ width: `${attRate}%` }} /></div>
+          <div className="sp-profile-summary-box"><span>คะแนนความประพฤติ</span><strong>{behaviorScore}</strong></div>
+          <div className="sp-profile-summary-box"><span>ส่งงานแล้ว</span><strong>{submissions.length} / {assignments.length}</strong></div>
+        </div>
+      </div>
+
+      <div className="sp-profile-grid sp-profile-grid-bottom">
         <div className="sp-card">
           <div className="sp-card-title">ผลงานและกิจกรรมล่าสุด</div>
           {recentActivity.length === 0 && <div className="sp-empty">ยังไม่มีผลงาน/กิจกรรมบันทึกไว้</div>}
-          {recentActivity.map((p) => (
-            <div key={p.id} className="sp-list-row">
-              <div>
-                <div className="sp-list-title">{p.activity}</div>
-                <div className="sp-list-sub">{fmtDate(p.date)}</div>
-              </div>
-              <span className="sp-tag" style={{ "--tag-color": "var(--accent)" }}>{p.hours} ชม.</span>
-            </div>
-          ))}
+          {recentActivity.map((p) => <div key={p.id} className="sp-list-row"><div><div className="sp-list-title">{p.activity}</div><div className="sp-list-sub">{fmtDate(p.date)}</div></div><span className="sp-tag" style={{ "--tag-color": "var(--accent)" }}>{p.hours} ชม.</span></div>)}
         </div>
-      </div>
-
-      <div className="sp-card">
-        <div className="sp-card-title">ความปลอดภัยบัญชี</div>
-        <div className="sp-inline-form">
-          <input className="sp-input" type="password" placeholder="รหัสผ่านใหม่" value={pw} onChange={(e) => setPw(e.target.value)} />
-          <button className="sp-btn-primary" type="button" onClick={changePassword}>บันทึก</button>
+        <div className="sp-card">
+          <div className="sp-card-title">ความปลอดภัยบัญชี</div>
+          <div className="sp-list-sub" style={{ marginBottom: 14 }}>เปลี่ยนรหัสผ่านสำหรับเข้าสู่ระบบ</div>
+          <div className="sp-inline-form"><input className="sp-input" type="password" placeholder="รหัสผ่านใหม่" value={pw} onChange={(e) => setPw(e.target.value)} /><button className="sp-btn-primary" type="button" onClick={changePassword}>บันทึก</button></div>
+          {msg && <div className="sp-success">{msg}</div>}
         </div>
-        {msg && <div className="sp-success">{msg}</div>}
       </div>
     </div>
   );
 }
-
 
 function MaterialIcon({ type }) {
   return <FileText size={18} />;
