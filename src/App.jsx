@@ -3977,7 +3977,10 @@ function GlobalStyle() {
       .sp-report-summary-label { font-size:0.72rem; color:var(--muted); margin-bottom:4px; }
       .sp-report-summary-value { font-family:'IBM Plex Mono'; font-weight:700; font-size:1.4rem; color:var(--accent); }
       .sp-report-signatures { display:flex; justify-content:space-around; margin-top:20px; text-align:center; font-size:0.85rem; }
-      .sp-report-sign-line .line { border-top:1px solid var(--ink); width:200px; margin:0 auto 10px; padding-top:44px; }
+      .sp-report-sign-line .line { border-top:1px solid var(--ink); width:160px; margin:0 auto 10px; padding-top:44px; }
+      .sp-report-signatures { flex-wrap:wrap; gap:20px; }
+      .sp-profile-info-row { display:flex; align-items:center; gap:6px; padding:8px 0; border-bottom:1px solid var(--line); font-size:0.9rem; }
+      .sp-profile-info-row:last-child { border-bottom:none; }
       .sp-report-date { text-align:right; font-size:0.78rem; color:var(--muted); margin-top:24px; }
 
       @media print {
