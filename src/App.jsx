@@ -1163,12 +1163,21 @@ function Sidebar({ role, view, setView, name, onLogout, theme, setTheme, siteCon
           </div>
         )}
         <nav className="sp-nav">
-          {nav.map((item) => {
+          {nav.map((item, i) => {
             const Icon = item.icon;
+            const showDivider = item.group && item.group !== nav[i - 1]?.group;
             return (
-              <button key={item.id} className={"sp-nav-item" + (view === item.id ? " active" : "")} onClick={() => setView(item.id)}>
-                <Icon size={18} /> <span>{item.label}</span>
-              </button>
+              <Fragment key={item.id}>
+                {showDivider && (
+                  <div className="sp-nav-group">
+                    {i > 0 && <div className="sp-nav-divider" />}
+                    <div className="sp-nav-group-label">{item.group}</div>
+                  </div>
+                )}
+                <button className={"sp-nav-item" + (view === item.id ? " active" : "")} onClick={() => setView(item.id)}>
+                  <Icon size={18} /> <span>{item.label}</span>
+                </button>
+              </Fragment>
             );
           })}
         </nav>
