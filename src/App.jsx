@@ -1341,7 +1341,7 @@ function StudentGrades({ data, student }) {
         </div>
       </div>
 
-      <div className="sp-grade-report-doc">
+      <div className="sp-grade-report-doc" id="grade-report-content">
         <div className="sp-report-header">
           <img src={LOGO} alt="ตราวิทยาลัย" className="sp-report-seal" />
           <div>
