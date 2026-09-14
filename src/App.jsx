@@ -1324,12 +1324,27 @@ function StudentGrades({ data, student }) {
     : "-";
 
   const today = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+
+  async function handleDownloadPdf() {
+    setPdfError("");
+    setPdfBusy(true);
+    try {
+      const fileName = `ใบเกรด_${student.name}_เทอม${selectedTerm?.termNumber || ""}_${selectedYear?.label || ""}.pdf`;
+      await downloadElementAsPdf("grade-report-content", fileName);
+    } catch (err) {
+      setPdfError(err.message || "สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   return (
     <div>
       <div className="sp-page-head sp-no-print">
         <h1>ผลการเรียน</h1>
-        <div className="sp-inline-form" style={{ gap: "10px" }}>
+        <div className="sp-inline-form" style={{ gap: "10px", flexWrap: "wrap" }}>
           <select className="sp-select" style={{ width: "auto" }} value={selectedTermId} onChange={(e) => setSelectedTermId(e.target.value)}>
             {orderedTerms.length === 0 && <option value="">- ไม่มีข้อมูลเทอม -</option>}
             {orderedTerms.map((t) => {
@@ -1337,8 +1352,12 @@ function StudentGrades({ data, student }) {
               return <option key={t.id} value={t.id}>ปีการศึกษา {y?.label} · เทอม {t.termNumber}</option>;
             })}
           </select>
-          <button className="sp-btn-primary" type="button" onClick={() => window.print()}><FileText size={16} /> พิมพ์ / บันทึกใบเกรด (PDF)</button>
+          <button className="sp-btn-primary" type="button" disabled={pdfBusy} onClick={handleDownloadPdf}>
+            <FileText size={16} /> {pdfBusy ? "กำลังสร้าง PDF..." : "ดาวน์โหลด PDF"}
+          </button>
+          <button className="sp-link-btn" type="button" style={{ margin: 0 }} onClick={() => window.print()}>หรือพิมพ์จากเบราว์เซอร์</button>
         </div>
+        {pdfError && <div className="sp-error"><AlertCircle size={16} /> {pdfError}</div>}
       </div>
 
       <div className="sp-grade-report-doc" id="grade-report-content">
@@ -3445,6 +3464,48 @@ function TeacherAnalytics({ data }) {
   );
 }
 
+
+function loadExternalScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("โหลดไลบรารีสำหรับสร้าง PDF ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่"));
+    document.body.appendChild(s);
+  });
+}
+
+// Generates a real, downloadable PDF file directly in the browser (works on mobile too,
+// unlike window.print() which depends on each browser/OS's own print dialog and often
+// isn't reliable on phones). Renders the report element to an image, then paginates it
+// across as many A4 pages as needed.
+async function downloadElementAsPdf(elementId, fileName) {
+  await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+  await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+  const el = document.getElementById(elementId);
+  if (!el) throw new Error("ไม่พบเนื้อหาที่จะบันทึกเป็น PDF");
+  const canvas = await window.html2canvas(el, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+  const imgData = canvas.toDataURL("image/png");
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF("p", "mm", "a4");
+  const pageWidth = 210, pageHeight = 297, margin = 10;
+  const usableWidth = pageWidth - margin * 2;
+  const usableHeight = pageHeight - margin * 2;
+  const imgWidth = usableWidth;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  let heightLeft = imgHeight;
+  let position = margin;
+  pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
+  heightLeft -= usableHeight;
+  while (heightLeft > 0) {
+    position = margin - (imgHeight - heightLeft);
+    pdf.addPage();
+    pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
+    heightLeft -= usableHeight;
+  }
+  pdf.save(fileName);
+}
 
 function playNotificationSound() {
   try {
